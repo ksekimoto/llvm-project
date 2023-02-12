@@ -51,6 +51,11 @@ else()
   set(Z3_LINK_FILES "")
 endif()
 
+# Link iconv library if it is an external library.
+if(LLVM_ENABLE_ICONV AND NOT Iconv_IS_BUILT_IN)
+  set(system_libs ${system_libs} ${Iconv_LIBRARIES})
+endif()
+
 add_llvm_component_library(LLVMSupport
   AArch64TargetParser.cpp
   ABIBreak.cpp
@@ -72,6 +77,7 @@ add_llvm_component_library(LLVMSupport
   BuryPointer.cpp
   CachePruning.cpp
   circular_raw_ostream.cpp
+  CharSet.cpp
   Chrono.cpp
   COM.cpp
   CodeGenCoverage.cpp
@@ -190,6 +196,14 @@ add_llvm_component_library(LLVMSupport
   )
 
 set_property(TARGET LLVMSupport PROPERTY LLVM_SYSTEM_LIBS "${system_libs}")
+
+# Add include dir for iconv library if it is an external library.
+if(LLVM_ENABLE_ICONV AND NOT Iconv_IS_BUILT_IN)
+  target_include_directories(LLVMSupport SYSTEM
+    PRIVATE
+    ${Iconv_INCLUDE_DIRS}
+    )
+endif()
 
 if(LLVM_WITH_Z3)
   target_include_directories(LLVMSupport SYSTEM

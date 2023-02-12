@@ -13,6 +13,7 @@ add_llvm_unittest(SupportTests
   BlockFrequencyTest.cpp
   BranchProbabilityTest.cpp
   CachePruningTest.cpp
+  CharSetTest.cpp
   CrashRecoveryTest.cpp
   Casting.cpp
   CheckedArithmeticTest.cpp

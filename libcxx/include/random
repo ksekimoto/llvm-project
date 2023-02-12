@@ -1734,7 +1734,7 @@ struct __lce_ta<__a, __c, 0, (unsigned long long)(~0), false>
 // 32
 
 template <unsigned long long _Ap, unsigned long long _Cp, unsigned long long _Mp>
-struct __lce_ta<_Ap, _Cp, _Mp, unsigned(~0), true>
+struct __lce_ta<_Ap, _Cp, _Mp, (unsigned long)(~0), true>
 {
     typedef unsigned result_type;
     _LIBCPP_INLINE_VISIBILITY
@@ -1755,9 +1755,9 @@ struct __lce_ta<_Ap, _Cp, _Mp, unsigned(~0), true>
 };
 
 template <unsigned long long _Ap, unsigned long long _Mp>
-struct __lce_ta<_Ap, 0, _Mp, unsigned(~0), true>
+struct __lce_ta<_Ap, 0, _Mp, (unsigned long)(~0), true>
 {
-    typedef unsigned result_type;
+    typedef unsigned long result_type;
     _LIBCPP_INLINE_VISIBILITY
     static result_type next(result_type __x)
     {
@@ -1774,7 +1774,7 @@ struct __lce_ta<_Ap, 0, _Mp, unsigned(~0), true>
 };
 
 template <unsigned long long _Ap, unsigned long long _Cp, unsigned long long _Mp>
-struct __lce_ta<_Ap, _Cp, _Mp, unsigned(~0), false>
+struct __lce_ta<_Ap, _Cp, _Mp, (unsigned long)(~0), false>
 {
     typedef unsigned result_type;
     _LIBCPP_INLINE_VISIBILITY
@@ -1788,7 +1788,7 @@ struct __lce_ta<_Ap, _Cp, _Mp, unsigned(~0), false>
 };
 
 template <unsigned long long _Ap, unsigned long long _Cp>
-struct __lce_ta<_Ap, _Cp, 0, unsigned(~0), false>
+struct __lce_ta<_Ap, _Cp, 0, (unsigned long)(~0), false>
 {
     typedef unsigned result_type;
     _LIBCPP_INLINE_VISIBILITY
@@ -1809,7 +1809,7 @@ struct __lce_ta<__a, __c, __m, (unsigned short)(~0), __b>
     _LIBCPP_INLINE_VISIBILITY
     static result_type next(result_type __x)
     {
-        return static_cast<result_type>(__lce_ta<__a, __c, __m, unsigned(~0)>::next(__x));
+        return static_cast<result_type>(__lce_ta<__a, __c, __m, (unsigned long)(~0)>::next(__x));
     }
 };
 
@@ -3484,7 +3484,7 @@ class _LIBCPP_TYPE_VIS random_device
 #endif // defined(_LIBCPP_USING_DEV_RANDOM)
 public:
     // types
-    typedef unsigned result_type;
+    typedef unsigned long result_type;
 
     // generator characteristics
     static _LIBCPP_CONSTEXPR const result_type _Min = 0;
@@ -3784,8 +3784,7 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
            const uniform_real_distribution<_RT>& __x)
 {
     __save_flags<_CharT, _Traits> __lx(__os);
-    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed |
-               ios_base::scientific);
+    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed );
     _CharT __sp = __os.widen(' ');
     __os.fill(__sp);
     return __os << __x.a() << __sp << __x.b();
@@ -3895,8 +3894,7 @@ basic_ostream<_CharT, _Traits>&
 operator<<(basic_ostream<_CharT, _Traits>& __os, const bernoulli_distribution& __x)
 {
     __save_flags<_CharT, _Traits> __lx(__os);
-    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed |
-               ios_base::scientific);
+    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed );
     _CharT __sp = __os.widen(' ');
     __os.fill(__sp);
     return __os << __x.p();
@@ -4074,8 +4072,7 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
            const binomial_distribution<_IntType>& __x)
 {
     __save_flags<_CharT, _Traits> __lx(__os);
-    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed |
-               ios_base::scientific);
+    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed );
     _CharT __sp = __os.widen(' ');
     __os.fill(__sp);
     return __os << __x.t() << __sp << __x.p();
@@ -4192,8 +4189,7 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
            const exponential_distribution<_RealType>& __x)
 {
     __save_flags<_CharT, _Traits> __lx(__os);
-    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed |
-               ios_base::scientific);
+    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed );
     return __os << __x.lambda();
 }
 
@@ -4346,8 +4342,7 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
            const normal_distribution<_RT>& __x)
 {
     __save_flags<_CharT, _Traits> __lx(__os);
-    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed |
-               ios_base::scientific);
+    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed );
     _CharT __sp = __os.widen(' ');
     __os.fill(__sp);
     __os << __x.mean() << __sp << __x.stddev() << __sp << __x._V_hot_;
@@ -4720,8 +4715,7 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
            const poisson_distribution<_IntType>& __x)
 {
     __save_flags<_CharT, _Traits> __lx(__os);
-    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed |
-               ios_base::scientific);
+    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed );
     return __os << __x.mean();
 }
 
@@ -4831,8 +4825,7 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
            const weibull_distribution<_RT>& __x)
 {
     __save_flags<_CharT, _Traits> __lx(__os);
-    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed |
-               ios_base::scientific);
+    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed );
     _CharT __sp = __os.widen(' ');
     __os.fill(__sp);
     __os << __x.a() << __sp << __x.b();
@@ -4950,8 +4943,7 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
            const extreme_value_distribution<_RT>& __x)
 {
     __save_flags<_CharT, _Traits> __lx(__os);
-    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed |
-               ios_base::scientific);
+    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed );
     _CharT __sp = __os.widen(' ');
     __os.fill(__sp);
     __os << __x.a() << __sp << __x.b();
@@ -5122,8 +5114,7 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
            const gamma_distribution<_RT>& __x)
 {
     __save_flags<_CharT, _Traits> __lx(__os);
-    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed |
-               ios_base::scientific);
+    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed );
     _CharT __sp = __os.widen(' ');
     __os.fill(__sp);
     __os << __x.alpha() << __sp << __x.beta();
@@ -5258,8 +5249,7 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
            const negative_binomial_distribution<_IntType>& __x)
 {
     __save_flags<_CharT, _Traits> __lx(__os);
-    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed |
-               ios_base::scientific);
+    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed );
     _CharT __sp = __os.widen(' ');
     __os.fill(__sp);
     return __os << __x.k() << __sp << __x.p();
@@ -5364,8 +5354,7 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
            const geometric_distribution<_IntType>& __x)
 {
     __save_flags<_CharT, _Traits> __lx(__os);
-    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed |
-               ios_base::scientific);
+    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed );
     return __os << __x.p();
 }
 
@@ -5468,8 +5457,7 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
            const chi_squared_distribution<_RT>& __x)
 {
     __save_flags<_CharT, _Traits> __lx(__os);
-    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed |
-               ios_base::scientific);
+    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed );
     __os << __x.n();
     return __os;
 }
@@ -5588,8 +5576,7 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
            const cauchy_distribution<_RT>& __x)
 {
     __save_flags<_CharT, _Traits> __lx(__os);
-    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed |
-               ios_base::scientific);
+    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed );
     _CharT __sp = __os.widen(' ');
     __os.fill(__sp);
     __os << __x.a() << __sp << __x.b();
@@ -5710,8 +5697,7 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
            const fisher_f_distribution<_RT>& __x)
 {
     __save_flags<_CharT, _Traits> __lx(__os);
-    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed |
-               ios_base::scientific);
+    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed );
     _CharT __sp = __os.widen(' ');
     __os.fill(__sp);
     __os << __x.m() << __sp << __x.n();
@@ -5826,8 +5812,7 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
            const student_t_distribution<_RT>& __x)
 {
     __save_flags<_CharT, _Traits> __lx(__os);
-    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed |
-               ios_base::scientific);
+    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed );
     __os << __x.n();
     return __os;
 }
@@ -6049,8 +6034,7 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
            const discrete_distribution<_IT>& __x)
 {
     __save_flags<_CharT, _Traits> __lx(__os);
-    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed |
-               ios_base::scientific);
+    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed );
     _CharT __sp = __os.widen(' ');
     __os.fill(__sp);
     size_t __n = __x.__p_.__p_.size();
@@ -6351,8 +6335,7 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
            const piecewise_constant_distribution<_RT>& __x)
 {
     __save_flags<_CharT, _Traits> __lx(__os);
-    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed |
-               ios_base::scientific);
+    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed );
     _CharT __sp = __os.widen(' ');
     __os.fill(__sp);
     size_t __n = __x.__p_.__b_.size();
@@ -6691,8 +6674,7 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
            const piecewise_linear_distribution<_RT>& __x)
 {
     __save_flags<_CharT, _Traits> __lx(__os);
-    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed |
-               ios_base::scientific);
+    __os.flags(ios_base::dec | ios_base::left | ios_base::fixed );
     _CharT __sp = __os.widen(' ');
     __os.fill(__sp);
     size_t __n = __x.__p_.__b_.size();

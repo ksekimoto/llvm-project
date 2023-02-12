@@ -48,7 +48,7 @@ random_device::~random_device()
 {
 }
 
-unsigned
+unsigned long
 random_device::operator()()
 {
     unsigned r;
@@ -71,7 +71,7 @@ random_device::~random_device()
 {
 }
 
-unsigned
+unsigned long
 random_device::operator()()
 {
     return arc4random();
@@ -91,7 +91,7 @@ random_device::~random_device()
     close(__f_);
 }
 
-unsigned
+unsigned long
 random_device::operator()()
 {
     unsigned r;
@@ -129,7 +129,7 @@ random_device::~random_device()
 {
 }
 
-unsigned
+unsigned long
 random_device::operator()()
 {
     unsigned r;
@@ -155,7 +155,7 @@ random_device::~random_device()
 {
 }
 
-unsigned
+unsigned long
 random_device::operator()()
 {
     unsigned r;

@@ -19,5 +19,5 @@ COMPILER_RT_ABI si_int __ffssi2(si_int a) {
   if (a == 0) {
     return 0;
   }
-  return __builtin_ctz(a) + 1;
+  return __ctz32(a) + 1;
 }

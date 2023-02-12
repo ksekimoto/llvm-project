@@ -34,6 +34,8 @@ void abort_message(const char* format, ...)
 #if !defined(NDEBUG) || !defined(LIBCXXABI_BAREMETAL)
 #ifdef __APPLE__
     fprintf(stderr, "libc++abi.dylib: ");
+#elif __RL78__
+    abort();
 #endif
     va_list list;
     va_start(list, format);

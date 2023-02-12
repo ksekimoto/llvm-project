@@ -14,8 +14,32 @@
 
 // Returns: a / b
 
-// Translated from Figure 3-40 of The PowerPC Compiler Writer's Guide
+#ifdef __MDA_ENABLED__
+#include "rl78/MDA.h"
+COMPILER_RT_ABI __attribute__((naked)) su_int __udivsi3(su_int n, su_int d) {
+  __asm("push	psw");
+  __asm("di");
+  __asm("mov	!LOWW(" XSTR(MDUC) "), #0x80");
+  __asm("movw	" XSTR(MDAL) ", ax");
+  __asm("movw	ax, bc");
+  __asm("movw " XSTR(MDAH) ", ax");
+  __asm("movw	ax, [sp+8]");
+  __asm("movw	" XSTR(MDBH) ", ax");
+  __asm("movw	ax, [sp+6]");
+  __asm("movw	" XSTR(MDBL) ", ax");
+  __asm("mov	!LOWW(" XSTR(MDUC) "), #0x81");	//This starts the division op
+  __asm("1:");
+  __asm("mov	a, !LOWW(" XSTR(MDUC) ")");	//Wait 16 clocks or until DIVST is clear
+  __asm("bt	a.0, $1b");
+  __asm("movw    ax, " XSTR(MDAH));
+  __asm("movw	bc, ax");
+  __asm("movw    ax, " XSTR(MDAL));
+  __asm("pop	psw");
+  __asm("ret");
+}
 
+#else
+// Translated from Figure 3-40 of The PowerPC Compiler Writer's Guide
 // This function should not call __divsi3!
 COMPILER_RT_ABI su_int __udivsi3(su_int n, su_int d) {
   const unsigned n_uword_bits = sizeof(su_int) * CHAR_BIT;
@@ -27,7 +51,7 @@ COMPILER_RT_ABI su_int __udivsi3(su_int n, su_int d) {
     return 0; // ?!
   if (n == 0)
     return 0;
-  sr = __builtin_clz(d) - __builtin_clz(n);
+  sr = __clz32(d) - __clz32(n);
   // 0 <= sr <= n_uword_bits - 1 or sr large
   if (sr > n_uword_bits - 1) // d > r
     return 0;
@@ -56,6 +80,7 @@ COMPILER_RT_ABI su_int __udivsi3(su_int n, su_int d) {
   q = (q << 1) | carry;
   return q;
 }
+#endif
 
 #if defined(__ARM_EABI__)
 COMPILER_RT_ALIAS(__udivsi3, __aeabi_uidiv)

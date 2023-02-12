@@ -367,6 +367,11 @@ LLVM-specific variables
   FFI_LIBRARY_DIR to the directories where ffi.h and libffi.so can be found,
   respectively. Defaults to OFF.
 
+**LLVM_ENABLE_ICONV**:BOOL
+  Enable building with iconv library to support conversion between different
+  character sets.
+  Defaults to ON.
+
 **LLVM_EXTERNAL_{CLANG,LLD,POLLY}_SOURCE_DIR**:PATH
   These variables specify the path to the source directory for the external
   LLVM projects Clang, lld, and Polly, respectively, relative to the top-level

@@ -168,7 +168,7 @@ file(WRITE ${SIMPLE_SOURCE} "#include <stdlib.h>\n#include <stdio.h>\nint main()
 # Detect whether the current target platform is 32-bit or 64-bit, and setup
 # the correct commandline flags needed to attempt to target 32-bit and 64-bit.
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 4 AND
-    NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+    NOT CMAKE_SIZEOF_VOID_P EQUAL 8 AND NOT CMAKE_SIZEOF_VOID_P EQUAL 2)
   message(FATAL_ERROR "Please use architecture with 4 or 8 byte pointers.")
 endif()
 
@@ -250,6 +250,7 @@ set(SPARC sparc)
 set(SPARCV9 sparcv9)
 set(WASM32 wasm32)
 set(WASM64 wasm64)
+set(RL78 rl78)
 
 if(APPLE)
   set(ARM64 arm64)
@@ -261,7 +262,7 @@ set(ALL_SANITIZER_COMMON_SUPPORTED_ARCH ${X86} ${X86_64} ${PPC64} ${RISCV64}
     ${ARM32} ${ARM64} ${MIPS32} ${MIPS64} ${S390X} ${SPARC} ${SPARCV9})
 set(ALL_ASAN_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64}
     ${MIPS32} ${MIPS64} ${PPC64} ${S390X} ${SPARC} ${SPARCV9})
-set(ALL_CRT_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${RISCV32} ${RISCV64})
+set(ALL_CRT_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${RISCV32} ${RISCV64} ${RL78})
 set(ALL_DFSAN_SUPPORTED_ARCH ${X86_64} ${MIPS64} ${ARM64})
 
 if(ANDROID)
@@ -610,8 +611,7 @@ else()
 endif()
 
 # TODO: Add builtins support.
-
-if (CRT_SUPPORTED_ARCH AND OS_NAME MATCHES "Linux")
+if (CRT_SUPPORTED_ARCH AND( OS_NAME MATCHES "Linux" OR OS_NAME MATCHES "Generic"))
   set(COMPILER_RT_HAS_CRT TRUE)
 else()
   set(COMPILER_RT_HAS_CRT FALSE)

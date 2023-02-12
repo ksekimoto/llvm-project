@@ -59,7 +59,7 @@
 #elif defined(_WIN32)
 #define COMPILER_RT_ALIAS(name, aliasname)
 #else
-#error Unsupported target
+#define COMPILER_RT_ALIAS(name, aliasname)
 #endif
 
 #if defined(__NetBSD__) && (defined(_KERNEL) || defined(_STANDALONE))
@@ -98,6 +98,14 @@ COMPILER_RT_ABI si_int __clzti2(ti_int a);
 COMPILER_RT_ABI tu_int __udivmodti4(tu_int a, tu_int b, tu_int *rem);
 #endif
 
+#if defined(__RL78__)
+#define __clz32 __builtin_clzl
+#define __ctz32 __builtin_ctzl
+#else
+#define __clz32 __builtin_clz
+#define __ctz32 __builtin_ctz
+#endif
+
 // Definitions for builtins unavailable on MSVC
 #if defined(_MSC_VER) && !defined(__clang__)
 #include <intrin.h>
@@ -130,8 +138,8 @@ uint32_t __inline __builtin_clzll(uint64_t value) {
   uint32_t msh = (uint32_t)(value >> 32);
   uint32_t lsh = (uint32_t)(value & 0xFFFFFFFF);
   if (msh != 0)
-    return __builtin_clz(msh);
-  return 32 + __builtin_clz(lsh);
+    return __clz32(msh);
+  return 32 + __clz32(lsh);
 }
 #endif
 

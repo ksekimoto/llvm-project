@@ -180,6 +180,28 @@ if(HAVE_LIBXAR)
   set(XAR_LIB xar)
 endif()
 
+# Check for iconv.
+if(LLVM_ENABLE_ICONV)
+  if(LLVM_ENABLE_ICONV STREQUAL FORCE_ON)
+    find_package(Iconv REQUIRED)
+  elseif(NOT LLVM_USE_SANITIZER MATCHES "Memory.*")
+    find_package(Iconv)
+  endif()
+  if(Iconv_FOUND)
+    # Check if iconv we found is usable; for example, we may have found a 32-bit
+    # library on a 64-bit system which would result in a link-time failure.
+    cmake_push_check_state()
+    list(APPEND CMAKE_REQUIRED_INCLUDES ${Iconv_INCLUDE_DIRS})
+    list(APPEND CMAKE_REQUIRED_LIBRARIES ${Iconv_LIBRARIES})
+    check_symbol_exists(iconv_open iconv.h HAVE_ICONV)
+    cmake_pop_check_state()
+    if(LLVM_ENABLE_ICONV STREQUAL FORCE_ON AND NOT HAVE_ICONV)
+      message(FATAL_ERROR "Failed to configure iconv")
+    endif()
+  endif()
+  set(LLVM_ENABLE_ICONV "${HAVE_ICONV}")
+endif()
+
 # function checks
 check_symbol_exists(arc4random "stdlib.h" HAVE_DECL_ARC4RANDOM)
 find_package(Backtrace)

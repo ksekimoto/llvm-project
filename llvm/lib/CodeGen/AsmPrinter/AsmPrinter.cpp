@@ -222,7 +222,9 @@ const DataLayout &AsmPrinter::getDataLayout() const {
 // Do not use the cached DataLayout because some client use it without a Module
 // (dsymutil, llvm-dwarfdump).
 unsigned AsmPrinter::getPointerSize() const {
-  return TM.getPointerSize(0); // FIXME: Default address space
+  //TODO: for RL78 we need to use far.
+  return TM.getPointerSize(2);
+  //return TM.getPointerSize(0); // FIXME: Default address space
 }
 
 const MCSubtargetInfo &AsmPrinter::getSubtargetInfo() const {
@@ -1029,7 +1031,7 @@ void AsmPrinter::emitStackSizeSection(const MachineFunction &MF) {
 
   const MCSymbol *FunctionSymbol = getFunctionBegin();
   uint64_t StackSize = FrameInfo.getStackSize();
-  OutStreamer->EmitSymbolValue(FunctionSymbol, TM.getProgramPointerSize());
+  OutStreamer->EmitSymbolValue(FunctionSymbol, 4);
   OutStreamer->EmitULEB128IntValue(StackSize);
 
   OutStreamer->PopSection();
@@ -1163,12 +1165,14 @@ void AsmPrinter::EmitFunctionBody() {
   }
 
   EmittedInsts += NumInstsInFunction;
-  MachineOptimizationRemarkAnalysis R(DEBUG_TYPE, "InstructionCount",
-                                      MF->getFunction().getSubprogram(),
-                                      &MF->front());
-  R << ore::NV("NumInstructions", NumInstsInFunction)
-    << " instructions in function";
-  ORE->emit(R);
+  if (NumInstsInFunction) {
+    MachineOptimizationRemarkAnalysis R(DEBUG_TYPE, "InstructionCount",
+                                        MF->getFunction().getSubprogram(),
+                                        &MF->front());
+    R << ore::NV("NumInstructions", NumInstsInFunction)
+      << " instructions in function";
+    ORE->emit(R);
+  }
 
   // If the function is empty and the object file uses .subsections_via_symbols,
   // then we need to emit *something* to the function body to prevent the

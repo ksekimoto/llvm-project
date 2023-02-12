@@ -1244,14 +1244,18 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
 
     llvm::sort(MappingSymbols);
 
-    if (Obj->isELF() && Obj->getArch() == Triple::amdgcn) {
-      // AMDGPU disassembler uses symbolizer for printing labels
+    if (Obj->isELF() &&
+        (Obj->getArch() == Triple::amdgcn ||
+         (Obj->getArch() == Triple::RL78 && !Obj->isRelocatableObject()))) {
+      // AMDGPU/RL78 disassembler use symbolizer for printing labels
       std::unique_ptr<MCRelocationInfo> RelInfo(
         TheTarget->createMCRelocationInfo(TripleName, Ctx));
       if (RelInfo) {
+
+        void * DisInfo = Obj->getArch() == Triple::amdgcn ? (void *)&Symbols : (void *)&AllSymbols;
         std::unique_ptr<MCSymbolizer> Symbolizer(
           TheTarget->createMCSymbolizer(
-            TripleName, nullptr, nullptr, &Symbols, &Ctx, std::move(RelInfo)));
+            TripleName, nullptr, nullptr, DisInfo, &Ctx, std::move(RelInfo)));
         DisAsm->setSymbolizer(std::move(Symbolizer));
       }
     }

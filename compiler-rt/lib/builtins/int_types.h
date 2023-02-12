@@ -22,11 +22,18 @@
 #ifdef si_int
 #undef si_int
 #endif
-typedef int si_int;
-typedef unsigned su_int;
 
-typedef long long di_int;
-typedef unsigned long long du_int;
+#if defined(__RL78__)
+  typedef signed long si_int;
+  typedef unsigned long su_int;
+  typedef long long di_int;
+  typedef unsigned long long du_int;
+#else
+  typedef int si_int;
+  typedef unsigned su_int;
+  typedef long long di_int;
+  typedef unsigned long long du_int;
+#endif
 
 typedef union {
   di_int all;

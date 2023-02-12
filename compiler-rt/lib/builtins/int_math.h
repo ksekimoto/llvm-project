@@ -97,6 +97,10 @@
 #define crt_scalbn(x, y) scalbn((x), (y))
 #define crt_scalbnf(x, y) scalbnf((x), (y))
 #define crt_scalbnl(x, y) scalbnl((x), (y))
+#elif defined(__RL78__)
+#define crt_scalbn(x, y) __builtin_scalbln((x), (y))
+#define crt_scalbnf(x, y) __builtin_scalblnf((x), (y))
+#define crt_scalbnl(x, y) __builtin_scalblnl((x), (y))
 #else
 #define crt_scalbn(x, y) __builtin_scalbn((x), (y))
 #define crt_scalbnf(x, y) __builtin_scalbnf((x), (y))

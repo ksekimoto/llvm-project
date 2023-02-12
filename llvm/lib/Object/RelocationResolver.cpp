@@ -393,6 +393,31 @@ static uint64_t resolveRISCV(RelocationRef R, uint64_t S, uint64_t A) {
   }
 }
 
+static bool supportsRL78(uint64_t Type) {
+  switch (Type) {
+  case ELF::R_RL78_DIR32U:
+  case ELF::R_RL78_DIR16U:  
+  case ELF::R_RL78_DIR8S_PCREL:
+    return true;
+  default:
+    llvm_unreachable("Invalid relocation type");
+  }
+}
+
+static uint64_t resolveRL78(RelocationRef R, uint64_t S, uint64_t A) {
+  int64_t RA = getELFAddend(R);
+  switch (R.getType()) {
+  case ELF::R_RL78_DIR32U:
+    return (S + RA) & 0xFFFFFFFF;
+  case ELF::R_RL78_DIR16U:  
+    return (S + RA) & 0xFFFF;
+  case ELF::R_RL78_DIR8S_PCREL:
+    return (S + RA - R.getOffset()) & 0xFF;
+  default:
+    llvm_unreachable("Invalid relocation type");
+  }
+}
+
 static bool supportsCOFFX86(uint64_t Type) {
   switch (Type) {
   case COFF::IMAGE_REL_I386_SECREL:
@@ -595,6 +620,9 @@ getRelocationResolver(const ObjectFile &Obj) {
       return {supportsHexagon, resolveHexagon};
     case Triple::riscv32:
       return {supportsRISCV, resolveRISCV};
+//TODO: is this executed?
+    case Triple::RL78:
+      return {supportsRL78, resolveRL78};
     default:
       return {nullptr, nullptr};
     }

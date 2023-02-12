@@ -1187,7 +1187,7 @@ public:
 
   /// Return an AddrSpaceCastSDNode.
   SDValue getAddrSpaceCast(const SDLoc &dl, EVT VT, SDValue Ptr, unsigned SrcAS,
-                           unsigned DestAS);
+                           unsigned DestAS, bool SrcIsProgAS);
 
   /// Return the specified value casted to
   /// the target's desired shift amount type.

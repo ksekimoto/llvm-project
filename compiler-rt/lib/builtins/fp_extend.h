@@ -21,8 +21,11 @@ typedef float src_t;
 typedef uint32_t src_rep_t;
 #define SRC_REP_C UINT32_C
 static const int srcSigBits = 23;
+#if defined(__RL78__)
+#define src_rep_t_clz __builtin_clzl
+#else
 #define src_rep_t_clz __builtin_clz
-
+#endif
 #elif defined SRC_DOUBLE
 typedef double src_t;
 typedef uint64_t src_rep_t;
@@ -33,9 +36,9 @@ static __inline int src_rep_t_clz(src_rep_t a) {
   return __builtin_clzl(a);
 #else
   if (a & REP_C(0xffffffff00000000))
-    return __builtin_clz(a >> 32);
+    return __clz32(a >> 32);
   else
-    return 32 + __builtin_clz(a & REP_C(0xffffffff));
+    return 32 + __clz32(a & REP_C(0xffffffff));
 #endif
 }
 

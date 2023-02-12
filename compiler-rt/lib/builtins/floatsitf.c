@@ -16,7 +16,7 @@
 #include "fp_lib.h"
 
 #if defined(CRT_HAS_128BIT) && defined(CRT_LDBL_128BIT)
-COMPILER_RT_ABI fp_t __floatsitf(int a) {
+COMPILER_RT_ABI fp_t __floatsitf(si_int a) {
 
   const int aWidth = sizeof a * CHAR_BIT;
 
@@ -33,7 +33,7 @@ COMPILER_RT_ABI fp_t __floatsitf(int a) {
   }
 
   // Exponent of (fp_t)a is the width of abs(a).
-  const int exponent = (aWidth - 1) - __builtin_clz(aAbs);
+  const int exponent = (aWidth - 1) - __clz32(aAbs);
   rep_t result;
 
   // Shift a into the significand field and clear the implicit bit.

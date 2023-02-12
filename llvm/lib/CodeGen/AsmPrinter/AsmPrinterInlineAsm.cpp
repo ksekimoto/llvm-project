@@ -489,6 +489,35 @@ static void EmitGCCInlineAsmStr(const char *AsmStr, const MachineInstr *MI,
   OS << '\n' << (char)0;  // null terminate string.
 }
 
+static void EmitRenesasInlineAsmStr(const char *AsmStr, const MachineInstr *MI,
+                                    MachineModuleInfo *MMI,
+                                    int AsmPrinterVariant, AsmPrinter *AP,
+                                    unsigned LocCookie, raw_ostream &OS) {
+  const char *LastEmitted = AsmStr; // One past the last character emitted.
+
+  OS << '\t';
+
+  while (*LastEmitted) {
+    switch (*LastEmitted) {
+    default: {
+      // Not a special case, emit the string section literally.
+      const char *LiteralEnd = LastEmitted + 1;
+      while (*LiteralEnd && *LiteralEnd != '{' && *LiteralEnd != '|' &&
+             *LiteralEnd != '}' && *LiteralEnd != '$' && *LiteralEnd != '\n')
+        ++LiteralEnd;
+      OS.write(LastEmitted, LiteralEnd - LastEmitted);
+      LastEmitted = LiteralEnd;
+      break;
+    }
+    case '\n':
+      ++LastEmitted; // Consume newline character.
+      OS << '\n';    // Indent code with newline.
+      break;
+    }
+  }
+  OS << '\n' << (char)0; // null terminate string.
+}
+
 /// EmitInlineAsm - This method formats and emits the specified machine
 /// instruction that is an inline asm.
 void AsmPrinter::EmitInlineAsm(const MachineInstr *MI) const {
@@ -541,7 +570,11 @@ void AsmPrinter::EmitInlineAsm(const MachineInstr *MI) const {
   // The variant of the current asmprinter.
   int AsmPrinterVariant = MAI->getAssemblerDialect();
   AsmPrinter *AP = const_cast<AsmPrinter*>(this);
-  if (MI->getInlineAsmDialect() == InlineAsm::AD_ATT)
+  if (TM.getTargetTriple().isRL78() &&
+      MI->getMF()->getFunction().hasFnAttribute("inline_asm"))
+    // TODO: Maybe implement it as a new inline asm syntax?
+    EmitRenesasInlineAsmStr(AsmStr, MI, MMI, AsmPrinterVariant, AP, LocCookie, OS);
+  else if (MI->getInlineAsmDialect() == InlineAsm::AD_ATT)
     EmitGCCInlineAsmStr(AsmStr, MI, MMI, AsmPrinterVariant, AP, LocCookie, OS);
   else
     EmitMSInlineAsmStr(AsmStr, MI, MMI, AP, LocCookie, OS);

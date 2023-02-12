@@ -149,3 +149,4 @@ int __ltsf2(fp_t a, fp_t b) { return __lesf2(a, b); }
 int __nesf2(fp_t a, fp_t b) { return __lesf2(a, b); }
 int __gtsf2(fp_t a, fp_t b) { return __gesf2(a, b); }
 #endif
+

@@ -399,6 +399,10 @@ protected:
   // If true, then the lexer and expression parser will support %neg(),
   // %hi(), and similar unary operators.
   bool HasMipsExpressions = false;
+  
+  // If true, then the lexer and expression parser will support %hi16()
+  //and similar unary operators.
+  bool HasRL78Expressions = false;
 
   // If true, emit function descriptor symbol on AIX.
   bool NeedsFunctionDescriptors = false;
@@ -665,6 +669,7 @@ public:
   bool canRelaxRelocations() const { return RelaxELFRelocations; }
   void setRelaxELFRelocations(bool V) { RelaxELFRelocations = V; }
   bool hasMipsExpressions() const { return HasMipsExpressions; }
+  bool hasRL78Expressions() const { return HasRL78Expressions; }
   bool needsFunctionDescriptors() const { return NeedsFunctionDescriptors; }
 };
 

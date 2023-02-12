@@ -12,6 +12,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/CRC.h"
@@ -22,8 +23,86 @@
 #include "llvm/Support/StringSaver.h"
 #include <memory>
 
+#include "Exec.h"
+
 namespace llvm {
 namespace objcopy {
+
+#if defined(_WIN32) || defined(_M_X64) || defined(_WIN64)
+bool RunCmd(const char *cmd, int &exitCode) {
+  DWORD exit_code;
+  STARTUPINFOA si;
+  PROCESS_INFORMATION pi;
+
+  exitCode = 0;
+  ZeroMemory(&si, sizeof(si));
+  si.cb = sizeof(si);
+  ZeroMemory(&pi, sizeof(pi));
+
+  // Start the child process.
+  if (!CreateProcessA(NULL,       // No module name (use command line)
+                      (LPSTR)cmd, // Command line
+                      NULL,       // Process handle not inheritable
+                      NULL,       // Thread handle not inheritable
+                      FALSE,      // Set handle inheritance to FALSE
+                      0,          // No creation flags
+                      NULL,       // Use parent's environment block
+                      NULL,       // Use parent's starting directory
+                      &si,        // Pointer to STARTUPINFO structure
+                      &pi)        // Pointer to PROCESS_INFORMATION structure
+  ) {
+    printf("CreateProcess failed (%d).\n", GetLastError());
+    return false;
+  }
+
+  // Wait until child process exits.
+  WaitForSingleObject(pi.hProcess, INFINITE);
+
+  if (GetExitCodeProcess(pi.hProcess, &exit_code) == FALSE) {
+    printf("GetExitCodeProcess failed (%d).\n", GetLastError());
+    return false;
+  }
+
+  // Close process and thread handles.
+  CloseHandle(pi.hProcess);
+  CloseHandle(pi.hThread);
+ 
+  exitCode = (int)exit_code;
+
+  return true;
+}
+#else
+#include <unistd.h> /* for fork */
+#include <stdint.h>
+#include <stdlib.h>
+#include <sys/types.h> /* for pid_t */
+#include <sys/wait.h>  /* for wait */
+typedef uint32_t DWORD;
+typedef uint16_t WORD;
+typedef uint32_t UNINT32;
+typedef char CHAR;
+bool RunCmd(const char *cmd, int &exitCode) {
+
+  pid_t pid = fork();
+  int n;
+  if (pid < 0)
+    return false; // error creating child
+  if (pid == 0) { /* child process */
+    exitCode = system(cmd);
+    exit(exitCode);
+  } else {               /* pid!=0; parent process */
+    waitpid(pid, &n, 0); /* wait for child to exit */
+    if (WIFEXITED(n))
+      exitCode = WEXITSTATUS(n); // get the exit code
+    else
+      exitCode = -1;
+  }
+  if (exitCode == -1)
+    return false;
+  else
+    return true;
+}
+#endif 
 
 namespace {
 enum ObjcopyID {
@@ -272,6 +351,8 @@ static const StringMap<MachineInfo> TargetMap{
     // SPARC
     {"elf32-sparc", {ELF::EM_SPARC, false, false}},
     {"elf32-sparcel", {ELF::EM_SPARC, false, true}},
+    //RENESAS
+    {"elf32-rl78", {ELF::EM_RL78, false, true}},
 };
 
 static Expected<TargetInfo>
@@ -410,6 +491,7 @@ parseObjcopyOptions(ArrayRef<const char *> ArgsArr,
   DriverConfig DC;
   ObjcopyOptTable T;
   unsigned MissingArgumentIndex, MissingArgumentCount;
+  int exitCode;
   llvm::opt::InputArgList InputArgs =
       T.ParseArgs(ArgsArr, MissingArgumentIndex, MissingArgumentCount);
 
@@ -490,18 +572,20 @@ parseObjcopyOptions(ArrayRef<const char *> ArgsArr,
 
   Config.OutputFormat = StringSwitch<FileFormat>(OutputFormat)
                             .Case("binary", FileFormat::Binary)
-                            .Case("ihex", FileFormat::IHex)
                             .Default(FileFormat::Unspecified);
   if (Config.OutputFormat == FileFormat::Unspecified) {
     if (OutputFormat.empty()) {
       Config.OutputFormat = Config.InputFormat;
     } else {
-      Expected<TargetInfo> Target =
-          getOutputTargetInfoByTargetName(OutputFormat);
-      if (!Target)
-        return Target.takeError();
-      Config.OutputFormat = Target->Format;
-      Config.OutputArch = Target->Machine;
+      unsigned Index = 0, End = InputArgs.size();
+      std::string Str = "rl78-elf-objcopy";
+      while (Index <= End) {
+        const Twine OptionArg = InputArgs.getArgString(Index);
+        Str = Str + " " + OptionArg.str();
+        ++Index;
+      }
+      RunCmd(Str.c_str(), exitCode);
+      exit(exitCode);
     }
   }
 

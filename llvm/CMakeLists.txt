@@ -302,6 +302,7 @@ set(LLVM_ALL_TARGETS
   WebAssembly
   X86
   XCore
+  RL78
   )
 
 # List of targets with JIT support:
@@ -349,6 +350,8 @@ option(LLVM_ENABLE_THREADS "Use threads if available." ON)
 
 option(LLVM_ENABLE_ZLIB "Use zlib for compression/decompression if available." ON)
 
+set(LLVM_ENABLE_ICONV "ON" CACHE STRING "Use iconv for character set conversion if available. Can be ON, OFF, or FORCE_ON")
+
 set(LLVM_Z3_INSTALL_DIR "" CACHE STRING "Install directory of the Z3 solver.")
 
 find_package(Z3 4.7.1)
@@ -382,6 +385,10 @@ set(LLVM_TARGETS_TO_BUILD
    ${LLVM_TARGETS_TO_BUILD}
    ${LLVM_EXPERIMENTAL_TARGETS_TO_BUILD})
 list(REMOVE_DUPLICATES LLVM_TARGETS_TO_BUILD)
+
+if (RL78 IN_LIST LLVM_TARGETS_TO_BUILD)
+    add_compile_definitions(USE_SHF_RENESAS_ABS)
+endif()
 
 option(LLVM_ENABLE_PIC "Build Position-Independent Code" ON)
 option(LLVM_ENABLE_WARNINGS "Enable compiler warnings." ON)

@@ -1901,7 +1901,7 @@ SDValue SelectionDAG::getBitcast(EVT VT, SDValue V) {
 }
 
 SDValue SelectionDAG::getAddrSpaceCast(const SDLoc &dl, EVT VT, SDValue Ptr,
-                                       unsigned SrcAS, unsigned DestAS) {
+                                       unsigned SrcAS, unsigned DestAS, bool SrcIsProgAS) {
   SDValue Ops[] = {Ptr};
   FoldingSetNodeID ID;
   AddNodeIDNode(ID, ISD::ADDRSPACECAST, getVTList(VT), Ops);
@@ -1913,7 +1913,7 @@ SDValue SelectionDAG::getAddrSpaceCast(const SDLoc &dl, EVT VT, SDValue Ptr,
     return SDValue(E, 0);
 
   auto *N = newSDNode<AddrSpaceCastSDNode>(dl.getIROrder(), dl.getDebugLoc(),
-                                           VT, SrcAS, DestAS);
+                                           VT, SrcAS, DestAS, SrcIsProgAS);
   createOperands(N, Ops);
 
   CSEMap.InsertNode(N, IP);
@@ -6321,7 +6321,7 @@ SDValue SelectionDAG::getMemcpy(SDValue Chain, const SDLoc &dl, SDValue Dst,
       .setLibCallee(TLI->getLibcallCallingConv(RTLIB::MEMCPY),
                     Dst.getValueType().getTypeForEVT(*getContext()),
                     getExternalSymbol(TLI->getLibcallName(RTLIB::MEMCPY),
-                                      TLI->getPointerTy(getDataLayout())),
+                                      TLI->getPointerTy(getDataLayout(), getDataLayout().getProgramAddressSpace())),
                     std::move(Args))
       .setDiscardResult()
       .setTailCall(isTailCall);
@@ -6362,7 +6362,7 @@ SDValue SelectionDAG::getAtomicMemcpy(SDValue Chain, const SDLoc &dl,
       .setLibCallee(TLI->getLibcallCallingConv(LibraryCall),
                     Type::getVoidTy(*getContext()),
                     getExternalSymbol(TLI->getLibcallName(LibraryCall),
-                                      TLI->getPointerTy(getDataLayout())),
+                                      TLI->getPointerTy(getDataLayout(), getDataLayout().getProgramAddressSpace())),
                     std::move(Args))
       .setDiscardResult()
       .setTailCall(isTailCall);
@@ -6425,7 +6425,7 @@ SDValue SelectionDAG::getMemmove(SDValue Chain, const SDLoc &dl, SDValue Dst,
       .setLibCallee(TLI->getLibcallCallingConv(RTLIB::MEMMOVE),
                     Dst.getValueType().getTypeForEVT(*getContext()),
                     getExternalSymbol(TLI->getLibcallName(RTLIB::MEMMOVE),
-                                      TLI->getPointerTy(getDataLayout())),
+                                      TLI->getPointerTy(getDataLayout(), getDataLayout().getProgramAddressSpace())),
                     std::move(Args))
       .setDiscardResult()
       .setTailCall(isTailCall);
@@ -6466,7 +6466,7 @@ SDValue SelectionDAG::getAtomicMemmove(SDValue Chain, const SDLoc &dl,
       .setLibCallee(TLI->getLibcallCallingConv(LibraryCall),
                     Type::getVoidTy(*getContext()),
                     getExternalSymbol(TLI->getLibcallName(LibraryCall),
-                                      TLI->getPointerTy(getDataLayout())),
+                                      TLI->getPointerTy(getDataLayout(), getDataLayout().getProgramAddressSpace())),
                     std::move(Args))
       .setDiscardResult()
       .setTailCall(isTailCall);
@@ -6527,7 +6527,7 @@ SDValue SelectionDAG::getMemset(SDValue Chain, const SDLoc &dl, SDValue Dst,
       .setLibCallee(TLI->getLibcallCallingConv(RTLIB::MEMSET),
                     Dst.getValueType().getTypeForEVT(*getContext()),
                     getExternalSymbol(TLI->getLibcallName(RTLIB::MEMSET),
-                                      TLI->getPointerTy(getDataLayout())),
+                                      TLI->getPointerTy(getDataLayout(), getDataLayout().getProgramAddressSpace())),
                     std::move(Args))
       .setDiscardResult()
       .setTailCall(isTailCall);
@@ -6567,7 +6567,7 @@ SDValue SelectionDAG::getAtomicMemset(SDValue Chain, const SDLoc &dl,
       .setLibCallee(TLI->getLibcallCallingConv(LibraryCall),
                     Type::getVoidTy(*getContext()),
                     getExternalSymbol(TLI->getLibcallName(LibraryCall),
-                                      TLI->getPointerTy(getDataLayout())),
+                                      TLI->getPointerTy(getDataLayout(), getDataLayout().getProgramAddressSpace())),
                     std::move(Args))
       .setDiscardResult()
       .setTailCall(isTailCall);
@@ -8968,9 +8968,9 @@ GlobalAddressSDNode::GlobalAddressSDNode(unsigned Opc, unsigned Order,
 
 AddrSpaceCastSDNode::AddrSpaceCastSDNode(unsigned Order, const DebugLoc &dl,
                                          EVT VT, unsigned SrcAS,
-                                         unsigned DestAS)
+                                         unsigned DestAS,  bool SrcIsProgAS)
     : SDNode(ISD::ADDRSPACECAST, Order, dl, getSDVTList(VT)),
-      SrcAddrSpace(SrcAS), DestAddrSpace(DestAS) {}
+      SrcAddrSpace(SrcAS), DestAddrSpace(DestAS), SrcIsProgramAddrSpace(SrcIsProgAS) {}
 
 MemSDNode::MemSDNode(unsigned Opc, unsigned Order, const DebugLoc &dl,
                      SDVTList VTs, EVT memvt, MachineMemOperand *mmo)

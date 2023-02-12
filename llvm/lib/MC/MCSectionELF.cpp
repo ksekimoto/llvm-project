@@ -116,6 +116,9 @@ void MCSectionELF::PrintSwitchToSection(const MCAsmInfo &MAI, const Triple &T,
   } else if (Arch == Triple::hexagon) {
     if (Flags & ELF::SHF_HEX_GPREL)
       OS << 's';
+  } else if (Arch == Triple::RL78) {
+    if (Flags & ELF::SHF_RENESAS_ABS)
+      OS << 'Y';
   }
 
   OS << '"';

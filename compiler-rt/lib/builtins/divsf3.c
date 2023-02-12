@@ -19,7 +19,6 @@
 #include "fp_lib.h"
 
 COMPILER_RT_ABI fp_t __divsf3(fp_t a, fp_t b) {
-
   const unsigned int aExponent = toRep(a) >> significandBits & maxExponent;
   const unsigned int bExponent = toRep(b) >> significandBits & maxExponent;
   const rep_t quotientSign = (toRep(a) ^ toRep(b)) & signBit;

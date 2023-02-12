@@ -21,7 +21,7 @@ COMPILER_RT_ABI si_int __ffsdi2(di_int a) {
   if (x.s.low == 0) {
     if (x.s.high == 0)
       return 0;
-    return __builtin_ctz(x.s.high) + (1 + sizeof(si_int) * CHAR_BIT);
+    return __ctz32(x.s.high) + (1 + sizeof(si_int) * CHAR_BIT);
   }
-  return __builtin_ctz(x.s.low) + 1;
+  return __ctz32(x.s.low) + 1;
 }

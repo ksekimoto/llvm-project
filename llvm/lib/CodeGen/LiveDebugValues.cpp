@@ -771,6 +771,7 @@ bool LiveDebugValues::removeEntryValue(const MachineInstr &MI,
   return true;
 }
 
+#pragma optimize("", off)
 /// End all previous ranges related to @MI and start a new range from @MI
 /// if it is a DBG_VALUE instr.
 void LiveDebugValues::transferDebugValue(const MachineInstr &MI,
@@ -820,6 +821,7 @@ void LiveDebugValues::transferDebugValue(const MachineInstr &MI,
            "Unexpected non-undef DBG_VALUE encountered");
   }
 }
+#pragma optimize("", on)
 
 /// Turn the entry value backup locations into primary locations.
 void LiveDebugValues::emitEntryValues(MachineInstr &MI,

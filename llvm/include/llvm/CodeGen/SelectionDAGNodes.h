@@ -1269,13 +1269,18 @@ class AddrSpaceCastSDNode : public SDNode {
 private:
   unsigned SrcAddrSpace;
   unsigned DestAddrSpace;
+  // TODO: RL78 see if this field is necessary or we can figure it out in some
+  // other way.
+  // See RL78ISelLowering::replaceNodeResults
+  bool SrcIsProgramAddrSpace;
 
 public:
   AddrSpaceCastSDNode(unsigned Order, const DebugLoc &dl, EVT VT,
-                      unsigned SrcAS, unsigned DestAS);
+                      unsigned SrcAS, unsigned DestAS, bool SrcIsProgAS);
 
   unsigned getSrcAddressSpace() const { return SrcAddrSpace; }
   unsigned getDestAddressSpace() const { return DestAddrSpace; }
+  bool isFunctionToPointerDecay() const { return SrcIsProgramAddrSpace; }
 
   static bool classof(const SDNode *N) {
     return N->getOpcode() == ISD::ADDRSPACECAST;

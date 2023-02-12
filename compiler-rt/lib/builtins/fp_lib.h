@@ -38,15 +38,30 @@
 #endif
 #endif
 
+#if defined(__RL78__)
+#define __clz32 __builtin_clzl
+#define __ctz32 __builtin_ctzl
+#else
+#define __clz32 __builtin_clz
+#define __ctz32 __builtin_ctz
+#endif
+
 #if defined SINGLE_PRECISION
 
+#if defined(__RL78__)
+typedef unsigned long rep_t;
+typedef signed long srep_t;
+typedef float fp_t;
+#define REP_C(c) (c##UL)
+#else
 typedef uint32_t rep_t;
 typedef int32_t srep_t;
 typedef float fp_t;
 #define REP_C UINT32_C
+#endif
 #define significandBits 23
 
-static __inline int rep_clz(rep_t a) { return __builtin_clz(a); }
+static __inline int rep_clz(rep_t a) { return __clz32(a); }
 
 // 32x32 --> 64 bit multiply
 static __inline void wideMultiply(rep_t a, rep_t b, rep_t *hi, rep_t *lo) {
@@ -58,20 +73,31 @@ COMPILER_RT_ABI fp_t __addsf3(fp_t a, fp_t b);
 
 #elif defined DOUBLE_PRECISION
 
+#if defined(__RL78__)
+typedef unsigned long long rep_t;
+typedef signed long long srep_t;
+typedef double fp_t;
+#define REP_C(c) (c##ULL)
+#else
 typedef uint64_t rep_t;
 typedef int64_t srep_t;
 typedef double fp_t;
 #define REP_C UINT64_C
+#endif
 #define significandBits 52
 
+#if defined(__RL78__)
+static __inline si_int rep_clz(rep_t a) {
+#else
 static __inline int rep_clz(rep_t a) {
+#endif
 #if defined __LP64__
   return __builtin_clzl(a);
 #else
   if (a & REP_C(0xffffffff00000000))
-    return __builtin_clz(a >> 32);
+    return __clz32(a >> 32);
   else
-    return 32 + __builtin_clz(a & REP_C(0xffffffff));
+    return 32 + __clz32(a & REP_C(0xffffffff));
 #endif
 }
 
@@ -231,19 +257,33 @@ static __inline fp_t fromRep(rep_t x) {
   return rep.f;
 }
 
+#if defined(__RL78__)
+static __inline si_int normalize(rep_t *significand) {
+  const si_int shift = rep_clz(*significand) - rep_clz(implicitBit);
+#else
 static __inline int normalize(rep_t *significand) {
   const int shift = rep_clz(*significand) - rep_clz(implicitBit);
+#endif
   *significand <<= shift;
   return 1 - shift;
 }
 
+#if defined(__RL78__)
+static __inline void wideLeftShift(rep_t *hi, rep_t *lo, si_int count) {
+#else
 static __inline void wideLeftShift(rep_t *hi, rep_t *lo, int count) {
+#endif
   *hi = *hi << count | *lo >> (typeWidth - count);
   *lo = *lo << count;
 }
 
+#if defined(__RL78__)
+static __inline void wideRightShiftWithSticky(rep_t *hi, rep_t *lo,
+                                              su_int count) {
+#else
 static __inline void wideRightShiftWithSticky(rep_t *hi, rep_t *lo,
                                               unsigned int count) {
+#endif
   if (count < typeWidth) {
     const bool sticky = (*lo << (typeWidth - count)) != 0;
     *lo = *hi << (typeWidth - count) | *lo >> count | sticky;
@@ -265,7 +305,11 @@ static __inline void wideRightShiftWithSticky(rep_t *hi, rep_t *lo,
 // the __compiler_rt prefix.
 static __inline fp_t __compiler_rt_logbX(fp_t x) {
   rep_t rep = toRep(x);
+  #if defined(__RL78__)
+  si_int exp = (rep & exponentMask) >> significandBits;
+  #else
   int exp = (rep & exponentMask) >> significandBits;
+  #endif
 
   // Abnormal cases:
   // 1) +/- inf returns +inf; NaN returns NaN
@@ -287,7 +331,11 @@ static __inline fp_t __compiler_rt_logbX(fp_t x) {
   } else {
     // Subnormal number; normalize and repeat
     rep &= absMask;
+    #if defined(__RL78__)
+    const si_int shift = 1 - normalize(&rep);
+    #else
     const int shift = 1 - normalize(&rep);
+    #endif
     exp = (rep & exponentMask) >> significandBits;
     return exp - exponentBias - shift; // Unbias exponent
   }

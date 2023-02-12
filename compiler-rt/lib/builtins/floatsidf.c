@@ -17,7 +17,7 @@
 
 #include "int_lib.h"
 
-COMPILER_RT_ABI fp_t __floatsidf(int a) {
+COMPILER_RT_ABI fp_t __floatsidf(si_int a) {
 
   const int aWidth = sizeof a * CHAR_BIT;
 
@@ -33,14 +33,14 @@ COMPILER_RT_ABI fp_t __floatsidf(int a) {
   }
 
   // Exponent of (fp_t)a is the width of abs(a).
-  const int exponent = (aWidth - 1) - __builtin_clz(a);
+  const int exponent = (aWidth - 1) - __clz32(a);
   rep_t result;
 
   // Shift a into the significand field and clear the implicit bit.  Extra
   // cast to unsigned int is necessary to get the correct behavior for
   // the input INT_MIN.
   const int shift = significandBits - exponent;
-  result = (rep_t)(unsigned int)a << shift ^ implicitBit;
+  result = (rep_t)(su_int)a << shift ^ implicitBit;
 
   // Insert the exponent
   result += (rep_t)(exponent + exponentBias) << significandBits;

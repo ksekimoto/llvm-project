@@ -65,6 +65,9 @@ public:
   MCSection *getSectionForJumpTable(const Function &F,
                                     const TargetMachine &TM) const override;
 
+  virtual std::string getSectionPrefixForGlobal(SectionKind Kind,
+                            const GlobalObject *GO = nullptr) const;
+
   bool shouldPutJumpTableInFunctionSection(bool UsesLabelDifference,
                                            const Function &F) const override;
 
