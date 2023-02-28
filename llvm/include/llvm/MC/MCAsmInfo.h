@@ -533,7 +533,11 @@ protected:
   // If true, then the lexer and expression parser will support %neg(),
   // %hi(), and similar unary operators.
   bool HasMipsExpressions = false;
-
+  
+  // If true, then the lexer and expression parser will support %hi16()
+  //and similar unary operators.
+  bool HasRL78Expressions = false;
+  
   // If true, use Motorola-style integers in Assembly (ex. $0ac).
   bool UseMotorolaIntegers = false;
 
@@ -875,6 +879,7 @@ public:
   bool canRelaxRelocations() const { return RelaxELFRelocations; }
   void setRelaxELFRelocations(bool V) { RelaxELFRelocations = V; }
   bool hasMipsExpressions() const { return HasMipsExpressions; }
+  bool hasRL78Expressions() const { return HasRL78Expressions; }
   bool needsFunctionDescriptors() const { return NeedsFunctionDescriptors; }
   bool shouldUseMotorolaIntegers() const { return UseMotorolaIntegers; }
 };

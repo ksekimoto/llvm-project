@@ -131,6 +131,12 @@ StringRef llvm::object::getELFRelocationTypeName(uint32_t Machine,
       break;
     }
     break;
+  case ELF::EM_RL78:
+    switch (Type) {
+#include "llvm/BinaryFormat/ELFRelocs/RL78.def"
+    default:
+      break;
+    }
   case ELF::EM_AMDGPU:
     switch (Type) {
 #include "llvm/BinaryFormat/ELFRelocs/AMDGPU.def"

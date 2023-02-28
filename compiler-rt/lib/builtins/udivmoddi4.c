@@ -82,11 +82,13 @@ COMPILER_RT_ABI du_int __udivmoddi4(du_int a, du_int b, du_int *rem) {
         r.s.high = n.s.high & (d.s.high - 1);
         *rem = r.all;
       }
+      // ToDo: RL78 ctzsi()
       return n.s.high >> ctzsi(d.s.high);
     }
     // K K
     // ---
     // K 0
+    // ToDo: RL78 clzsi()
     sr = clzsi(d.s.high) - clzsi(n.s.high);
     // 0 <= sr <= n_uword_bits - 2 or sr large
     if (sr > n_uword_bits - 2) {

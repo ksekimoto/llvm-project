@@ -602,8 +602,9 @@ bool ELFWriter::isInSymtab(const MCAsmLayout &Layout, const MCSymbolELF &Symbol,
   if (Symbol.isTemporary())
     return false;
 
-  if (Symbol.getType() == ELF::STT_SECTION)
-    return false;
+  // RL78
+  /*if (Symbol.getType() == ELF::STT_SECTION)
+    return false;*/ //TODO commented out to ensure cc-rl rlink compatibility
 
   return true;
 }

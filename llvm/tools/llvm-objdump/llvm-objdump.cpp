@@ -1441,12 +1441,16 @@ static void disassembleObject(const Target *TheTarget, ObjectFile &Obj,
         unwrapOrError(Section.getContents(), Obj.getFileName()));
 
     std::vector<std::unique_ptr<std::string>> SynthesizedLabelNames;
-    if (Obj.isELF() && Obj.getArch() == Triple::amdgcn) {
-      // AMDGPU disassembler uses symbolizer for printing labels
+    // ToDo: RL78 need review
+#if 0
+    if (Obj->isELF() &&
+        (Obj->getArch() == Triple::amdgcn ||
+        (Obj->getArch() == Triple::RL78 && !Obj->isRelocatableObject()))) {
+      // AMDGPU/RL78 disassembler use symbolizer for printing labels
       addSymbolizer(Ctx, TheTarget, TripleName, DisAsm, SectionAddr, Bytes,
                     Symbols, SynthesizedLabelNames);
     }
-
+#endif
     StringRef SegmentName = getSegmentName(MachO, Section);
     StringRef SectionName = unwrapOrError(Section.getName(), Obj.getFileName());
     // If the section has no symbol at the start, just insert a dummy one.

@@ -2916,6 +2916,17 @@ Instruction *InstCombinerImpl::visitAddrSpaceCast(AddrSpaceCastInst &CI) {
 
     Value *NewBitCast = Builder.CreateBitCast(Src, MidTy);
     return new AddrSpaceCastInst(NewBitCast, CI.getType());
+    // For RL78 bitcasting a near data pointer to a near function pointer
+    // is not allowed. We change the order
+    // if (DestElemTy->isFunctionTy() != SrcElemTy->isFunctionTy()) {
+    //   PointerType *SrcDestASTy =
+    //       PointerType::get(SrcElemTy, DestTy->getAddressSpace());
+    //   Value *AddrSpaceCast = Builder.CreateAddrSpaceCast(Src, SrcDestASTy);
+    //   return new BitCastInst(AddrSpaceCast, CI.getType());
+    // } else {
+    //   Value *NewBitCast = Builder.CreateBitCast(Src, MidTy);
+    //   return new AddrSpaceCastInst(NewBitCast, CI.getType());
+    // }    
   }
 
   return commonPointerCastTransforms(CI);

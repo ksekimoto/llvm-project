@@ -1213,6 +1213,8 @@ StringRef ELFObjectFile<ELFT>::getFileFormatName() const {
       return "elf32-amdgpu";
     case ELF::EM_LOONGARCH:
       return "elf32-loongarch";
+    case ELF::EM_RL78:
+      return "ELF32-RL78";
     default:
       return "elf32-unknown";
     }
@@ -1271,6 +1273,8 @@ template <class ELFT> Triple::ArchType ELFObjectFile<ELFT>::getArch() const {
     return Triple::hexagon;
   case ELF::EM_LANAI:
     return Triple::lanai;
+  case ELF::EM_RL78:
+    return Triple::RL78;
   case ELF::EM_MIPS:
     switch (EF.getHeader().e_ident[ELF::EI_CLASS]) {
     case ELF::ELFCLASS32:

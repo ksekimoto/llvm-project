@@ -2029,8 +2029,9 @@ SDValue SelectionDAGLegalize::ExpandLibCall(RTLIB::Libcall LC, SDNode *Node,
     Entry.IsZExt = !TLI.shouldSignExtendTypeInLibCall(ArgVT, isSigned);
     Args.push_back(Entry);
   }
+  // RL78
   SDValue Callee = DAG.getExternalSymbol(TLI.getLibcallName(LC),
-                                         TLI.getPointerTy(DAG.getDataLayout()));
+                                         TLI.getPointerTy(DAG.getDataLayout(), DAG.getDataLayout().getProgramAddressSpace()));
 
   EVT RetVT = Node->getValueType(0);
   Type *RetTy = RetVT.getTypeForEVT(*DAG.getContext());
@@ -2197,7 +2198,7 @@ SelectionDAGLegalize::ExpandDivRemLibCall(SDNode *Node,
   Args.push_back(Entry);
 
   SDValue Callee = DAG.getExternalSymbol(TLI.getLibcallName(LC),
-                                         TLI.getPointerTy(DAG.getDataLayout()));
+                                         TLI.getPointerTy(DAG.getDataLayout(), DAG.getDataLayout().getProgramAddressSpace()));
 
   SDLoc dl(Node);
   TargetLowering::CallLoweringInfo CLI(DAG);
@@ -3929,8 +3930,9 @@ void SelectionDAGLegalize::ConvertNodeToLibcall(SDNode *Node) {
         .setLibCallee(
             CallingConv::C, Type::getVoidTy(*DAG.getContext()),
             DAG.getExternalSymbol("__sync_synchronize",
-                                  TLI.getPointerTy(DAG.getDataLayout())),
+                                  TLI.getPointerTy(DAG.getDataLayout(), DAG.getDataLayout().getProgramAddressSpace())),
             std::move(Args));
+
 
     std::pair<SDValue, SDValue> CallResult = TLI.LowerCallTo(CLI);
 

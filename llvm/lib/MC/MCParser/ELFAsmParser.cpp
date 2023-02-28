@@ -325,6 +325,9 @@ static unsigned parseSectionFlags(const Triple &TT, StringRef flagsStr,
     case 'y':
       flags |= ELF::SHF_ARM_PURECODE;
       break;
+	  case 'Y':
+      flags |= ELF::SHF_RENESAS_ABS;
+      break;
     case 's':
       flags |= ELF::SHF_HEX_GPREL;
       break;

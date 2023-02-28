@@ -499,7 +499,15 @@ void Value::doRAUW(Value *New, ReplaceMetadataUses ReplaceMetaUses) {
   assert(New && "Value::replaceAllUsesWith(<null>) is invalid!");
   assert(!contains(New, this) &&
          "this->replaceAllUsesWith(expr(this)) is NOT valid!");
-  assert(New->getType() == getType() &&
+  // For RL78 we must allow replacements of noprototypefunction pointers without
+  // address space with prototypefunction pointers with address space.
+  assert((New->getType() == getType() ||
+          (New->getType()->getTypeID() == getType()->getTypeID() &&
+           New->getType()->getTypeID() == Type::PointerTyID &&
+           New->getType()->getPointerElementType()->getTypeID() ==
+               Type::FunctionTyID &&
+           New->getType()->getPointerElementType() ==
+               getType()->getPointerElementType())) &&
          "replaceAllUses of value with new value of different type!");
 
   // Notify all ValueHandles (if present) that this value is going away.

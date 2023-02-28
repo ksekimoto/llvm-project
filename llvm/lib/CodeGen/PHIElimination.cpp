@@ -46,6 +46,7 @@ using namespace llvm;
 
 #define DEBUG_TYPE "phi-node-elimination"
 
+//TODO: benchmark the following options
 static cl::opt<bool>
 DisableEdgeSplitting("disable-phi-elim-edge-splitting", cl::init(false),
                      cl::Hidden, cl::desc("Disable critical edge splitting "

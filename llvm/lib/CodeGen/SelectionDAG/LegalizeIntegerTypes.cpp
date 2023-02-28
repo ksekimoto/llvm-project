@@ -4416,7 +4416,8 @@ void DAGTypeLegalizer::ExpandIntRes_XMULO(SDNode *N,
   }
 
   Type *RetTy = VT.getTypeForEVT(*DAG.getContext());
-  EVT PtrVT = TLI.getPointerTy(DAG.getDataLayout());
+  // RL78
+  EVT PtrVT = TLI.getPointerTy(DAG.getDataLayout(), DAG.getDataLayout().getProgramAddressSpace());
   Type *PtrTy = PtrVT.getTypeForEVT(*DAG.getContext());
 
   // Replace this with a libcall that will check overflow.

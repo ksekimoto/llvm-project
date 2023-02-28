@@ -216,7 +216,7 @@ file(WRITE ${SIMPLE_SOURCE} "#include <stdlib.h>\n#include <stdio.h>\nint main(v
 # AVR and MSP430 are omitted since they have 16-bit pointers.
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 4 AND
     NOT CMAKE_SIZEOF_VOID_P EQUAL 8 AND
-    NOT ${arch} MATCHES "avr|msp430")
+    NOT ${arch} MATCHES "avr|msp430|rl78")
   message(FATAL_ERROR "Please use architecture with 4 or 8 byte pointers.")
 endif()
 
