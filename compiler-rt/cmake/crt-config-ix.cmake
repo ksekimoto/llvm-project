@@ -29,9 +29,10 @@ set(RISCV32 riscv32)
 set(RISCV64 riscv64)
 set(VE ve)
 set(XTENSA xtensa)
+set(RL78 rl78)
 
 set(ALL_CRT_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${PPC32}
-    ${PPC64} ${RISCV32} ${RISCV64} ${VE} ${HEXAGON} ${XTENSA})
+    ${PPC64} ${RISCV32} ${RISCV64} ${VE} ${HEXAGON} ${XTENSA} ${RL78})
 
 include(CompilerRTUtils)
 

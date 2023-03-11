@@ -67,6 +67,7 @@ private:
   AsmToken LexQuote();
   AsmToken LexFloatLiteral();
   AsmToken LexHexFloatLiteral(bool NoIntDigits);
+  AsmToken LexRL78BitPositionLiteral(const char *NumStartLoc);
 
   StringRef LexUntilEndOfLine();
 };

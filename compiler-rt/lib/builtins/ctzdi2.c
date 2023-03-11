@@ -30,6 +30,7 @@ COMPILER_RT_ABI int __ctzdi2(di_int a) {
   dwords x;
   x.all = a;
   const si_int f = -(x.s.low == 0);
+  // ToDo: RL78 check ctzsi()
   return ctzsi((x.s.high & f) | (x.s.low & ~f)) +
          (f & ((si_int)(sizeof(si_int) * CHAR_BIT)));
 }

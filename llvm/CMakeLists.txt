@@ -22,7 +22,7 @@ if(NOT DEFINED LLVM_VERSION_MINOR)
   set(LLVM_VERSION_MINOR 0)
 endif()
 if(NOT DEFINED LLVM_VERSION_PATCH)
-  set(LLVM_VERSION_PATCH 0)
+  set(LLVM_VERSION_PATCH 6)
 endif()
 if(NOT DEFINED LLVM_VERSION_SUFFIX)
   set(LLVM_VERSION_SUFFIX)
@@ -384,6 +384,7 @@ set(LLVM_ALL_TARGETS
   WebAssembly
   X86
   XCore
+  RL78
   )
 
 # List of targets with JIT support:
@@ -446,6 +447,8 @@ set(LLVM_ENABLE_ZLIB "ON" CACHE STRING "Use zlib for compression/decompression i
 
 set(LLVM_ENABLE_ZSTD "ON" CACHE STRING "Use zstd for compression/decompression if available. Can be ON, OFF, or FORCE_ON")
 
+set(LLVM_USE_STATIC_ZSTD FALSE CACHE BOOL "Use static version of zstd. Can be TRUE, FALSE")
+
 set(LLVM_ENABLE_CURL "OFF" CACHE STRING "Use libcurl for the HTTP client if available. Can be ON, OFF, or FORCE_ON")
 
 set(LLVM_ENABLE_HTTPLIB "OFF" CACHE STRING "Use cpp-httplib HTTP server library if available. Can be ON, OFF, or FORCE_ON")
@@ -484,6 +487,10 @@ set(LLVM_TARGETS_TO_BUILD
    ${LLVM_TARGETS_TO_BUILD}
    ${LLVM_EXPERIMENTAL_TARGETS_TO_BUILD})
 list(REMOVE_DUPLICATES LLVM_TARGETS_TO_BUILD)
+
+if (RL78 IN_LIST LLVM_TARGETS_TO_BUILD)
+    add_compile_definitions(USE_SHF_RENESAS_ABS)
+endif()
 
 option(LLVM_ENABLE_PIC "Build Position-Independent Code" ON)
 option(LLVM_ENABLE_MODULES "Compile with C++ modules enabled." OFF)

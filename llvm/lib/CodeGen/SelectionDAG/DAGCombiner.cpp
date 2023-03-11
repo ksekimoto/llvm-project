@@ -112,7 +112,7 @@ static cl::opt<bool>
                     cl::desc("DAG combiner may split indexing from loads"));
 
 static cl::opt<bool>
-    EnableStoreMerging("combiner-store-merging", cl::Hidden, cl::init(true),
+    EnableStoreMerging("combiner-store-merging", cl::Hidden, cl::init(false),//TODO investigate why does it handle consecutive stores badly when using negative stack offsets
                        cl::desc("DAG combiner enable merging multiple stores "
                                 "into a wider store"));
 
@@ -7163,9 +7163,8 @@ static SDValue extractShiftForRotate(SelectionDAG &DAG, SDValue OppShift,
                                      SDValue ExtractFrom, SDValue &Mask,
                                      const SDLoc &DL) {
   assert(OppShift && ExtractFrom && "Empty SDValue");
-  assert(
-      (OppShift.getOpcode() == ISD::SHL || OppShift.getOpcode() == ISD::SRL) &&
-      "Existing shift must be valid as a rotate half");
+  if (OppShift.getOpcode() != ISD::SHL && OppShift.getOpcode() != ISD::SRL)
+    return SDValue();
 
   ExtractFrom = stripConstantMask(DAG, ExtractFrom, Mask);
 

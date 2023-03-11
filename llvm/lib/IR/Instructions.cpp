@@ -3128,6 +3128,14 @@ unsigned CastInst::isEliminableCastPair(
       // FIXME: this state can be merged with (1), but the following assert
       // is useful to check the correcteness of the sequence due to semantic
       // change of bitcast.
+      // For RL78 bitcast (addrspacecast data_pointer) to function pointer and
+      //          bitcast (addrspacecast function_pointer) to data pointer
+      // can't be merged. See InstCombiner::visitAddrSpaceCast.
+      // TODO: make it rl78 specific
+      if (SrcTy->isPointerTy() && DstTy->isPointerTy() &&
+          SrcTy->getPointerElementType()->isFunctionTy() !=
+              DstTy->getPointerElementType()->isFunctionTy())
+        return 0;      
       assert(
         SrcTy->isPtrOrPtrVectorTy() &&
         MidTy->isPtrOrPtrVectorTy() &&

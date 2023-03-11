@@ -1030,12 +1030,12 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
             FTy.getParamType(1)->isPointerTy());
 
   case LibFunc_strcmp:
-    return (NumParams == 2 && FTy.getReturnType()->isIntegerTy(32) &&
+    return (NumParams == 2 && FTy.getReturnType()->isIntegerTy() &&
             FTy.getParamType(0)->isPointerTy() &&
             FTy.getParamType(0) == FTy.getParamType(1));
 
   case LibFunc_strncmp:
-    return (NumParams == 3 && FTy.getReturnType()->isIntegerTy(32) &&
+    return (NumParams == 3 && FTy.getReturnType()->isIntegerTy() &&
             FTy.getParamType(0)->isPointerTy() &&
             FTy.getParamType(0) == FTy.getParamType(1) &&
             FTy.getParamType(2)->isIntegerTy(SizeTBits));
@@ -1116,7 +1116,7 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
     return NumParams == 1 && FTy.getParamType(0)->isIntegerTy(SizeTBits) &&
            FTy.getReturnType()->isPointerTy();
   case LibFunc_memcmp:
-    return NumParams == 3 && FTy.getReturnType()->isIntegerTy(32) &&
+    return NumParams == 3 && FTy.getReturnType()->isIntegerTy() &&
            FTy.getParamType(0)->isPointerTy() &&
            FTy.getParamType(1)->isPointerTy() &&
            FTy.getParamType(2)->isIntegerTy(SizeTBits);
@@ -1125,7 +1125,7 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
   case LibFunc_memrchr:
     return (NumParams == 3 && FTy.getReturnType()->isPointerTy() &&
             FTy.getReturnType() == FTy.getParamType(0) &&
-            FTy.getParamType(1)->isIntegerTy(32) &&
+            FTy.getParamType(1)->isIntegerTy() &&
             FTy.getParamType(2)->isIntegerTy(SizeTBits));
   case LibFunc_modf:
   case LibFunc_modff:

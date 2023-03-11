@@ -22,8 +22,14 @@
 #ifdef si_int
 #undef si_int
 #endif
+// ToDo: RL78
+#if defined(__RL78__)
+typedef signed long si_int;
+typedef unsigned long su_int;
+#else
 typedef int32_t si_int;
 typedef uint32_t su_int;
+#endif
 #if UINT_MAX == 0xFFFFFFFF
 #define clzsi __builtin_clz
 #define ctzsi __builtin_ctz
@@ -34,8 +40,13 @@ typedef uint32_t su_int;
 #error could not determine appropriate clzsi macro for this system
 #endif
 
+#if defined(__RL78__)
+typedef long long di_int;
+typedef unsigned long long du_int;
+#else
 typedef int64_t di_int;
 typedef uint64_t du_int;
+#endif
 
 typedef union {
   di_int all;

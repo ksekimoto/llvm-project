@@ -497,7 +497,7 @@ public:
 # else
     static const mask __regex_word = 0x80;
 # endif
-#elif defined(_NEWLIB_VERSION)
+#elif defined(_NEWLIB_VERSION) && !defined(__RL78__)
     // Same type as Newlib's _ctype_ array in newlib/libc/include/ctype.h.
     typedef char mask;
     static const mask space  = _S;

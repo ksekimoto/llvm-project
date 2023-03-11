@@ -67,7 +67,9 @@
 #elif defined(_WIN32)
 #define COMPILER_RT_ALIAS(name, aliasname)
 #else
-#error Unsupported target
+// #error Unsupported target
+// ToDo: RL78
+#define COMPILER_RT_ALIAS(name, aliasname)
 #endif
 
 #if (defined(__FreeBSD__) || defined(__NetBSD__)) &&                           \
@@ -113,6 +115,14 @@ COMPILER_RT_ABI du_int __udivmoddi4(du_int a, du_int b, du_int *rem);
 #ifdef CRT_HAS_128BIT
 COMPILER_RT_ABI int __clzti2(ti_int a);
 COMPILER_RT_ABI tu_int __udivmodti4(tu_int a, tu_int b, tu_int *rem);
+#endif
+
+#if defined(__RL78__)
+#define __clz32 __builtin_clzl
+#define __ctz32 __builtin_ctzl
+#else
+#define __clz32 __builtin_clz
+#define __ctz32 __builtin_ctz
 #endif
 
 // Definitions for builtins unavailable on MSVC

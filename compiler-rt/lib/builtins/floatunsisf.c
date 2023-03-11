@@ -26,6 +26,7 @@ COMPILER_RT_ABI fp_t __floatunsisf(su_int a) {
     return fromRep(0);
 
   // Exponent of (fp_t)a is the width of abs(a).
+  // ToDo: RL78 clzsi()
   const int exponent = (aWidth - 1) - clzsi(a);
   rep_t result;
 

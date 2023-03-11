@@ -26,7 +26,11 @@ COMPILER_RT_ABI float __floatdisf(di_int a) {
   const di_int s = a >> (N - 1);
   a = (a ^ s) - s;
   int sd = N - __builtin_clzll(a); // number of significant digits
+  #if defined(__RL78__)
   si_int e = sd - 1;               // exponent
+  #else
+  int e = sd - 1;                  // exponent
+  #endif
   if (sd > FLT_MANT_DIG) {
     //  start:  0000000000000000000001xxxxxxxxxxxxxxxxxxxxxxPQxxxxxxxxxxxxxxxxxx
     //  finish: 000000000000000000000000000000000000001xxxxxxxxxxxxxxxxxxxxxxPQR

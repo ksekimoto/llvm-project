@@ -62,6 +62,7 @@ set(WASM32 wasm32)
 set(WASM64 wasm64)
 set(XTENSA xtensa)
 set(VE ve)
+set(RL78 rl78)
 
 if(APPLE)
   set(ARM64 arm64 arm64e)
@@ -73,7 +74,7 @@ set(ALL_BUILTIN_SUPPORTED_ARCH
   ${X86} ${X86_64} ${ARM32} ${ARM64} ${AVR}
   ${HEXAGON} ${MIPS32} ${MIPS64} ${PPC32} ${PPC64}
   ${RISCV32} ${RISCV64} ${SPARC} ${SPARCV9}
-  ${WASM32} ${WASM64} ${VE} ${XTENSA})
+  ${WASM32} ${WASM64} ${VE} ${XTENSA} ${RL78})
 
 include(CompilerRTUtils)
 include(CompilerRTDarwinUtils)

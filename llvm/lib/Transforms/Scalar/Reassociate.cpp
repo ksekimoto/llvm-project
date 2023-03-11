@@ -177,7 +177,10 @@ void ReassociatePass::BuildRankMap(Function &F,
 
   // Assign distinct ranks to function arguments.
   for (auto &Arg : F.args()) {
-    ValueRankMap[&Arg] = ++Rank;
+    // RL78
+    //TODO: ++Rank, benchmark and analyze this further
+    //ValueRankMap[&Arg] = ++Rank;
+    ValueRankMap[&Arg] = Rank;
     LLVM_DEBUG(dbgs() << "Calculated Rank[" << Arg.getName() << "] = " << Rank
                       << "\n");
   }

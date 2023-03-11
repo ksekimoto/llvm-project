@@ -238,19 +238,33 @@ static __inline fp_t fromRep(rep_t x) {
   return rep.f;
 }
 
+#if defined(__RL78__)
+static __inline si_int normalize(rep_t *significand) {
+  const si_int shift = rep_clz(*significand) - rep_clz(implicitBit);
+#else
 static __inline int normalize(rep_t *significand) {
   const int shift = rep_clz(*significand) - rep_clz(implicitBit);
+#endif
   *significand <<= shift;
   return 1 - shift;
 }
 
+#if defined(__RL78__)
+static __inline void wideLeftShift(rep_t *hi, rep_t *lo, si_int count) {
+#else
 static __inline void wideLeftShift(rep_t *hi, rep_t *lo, int count) {
+#endif
   *hi = *hi << count | *lo >> (typeWidth - count);
   *lo = *lo << count;
 }
 
+#if defined(__RL78__)
+static __inline void wideRightShiftWithSticky(rep_t *hi, rep_t *lo,
+                                              su_int count) {
+#else
 static __inline void wideRightShiftWithSticky(rep_t *hi, rep_t *lo,
                                               unsigned int count) {
+#endif
   if (count < typeWidth) {
     const bool sticky = (*lo << (typeWidth - count)) != 0;
     *lo = *hi << (typeWidth - count) | *lo >> count | sticky;
@@ -272,7 +286,11 @@ static __inline void wideRightShiftWithSticky(rep_t *hi, rep_t *lo,
 // the __compiler_rt prefix.
 static __inline fp_t __compiler_rt_logbX(fp_t x) {
   rep_t rep = toRep(x);
+  #if defined(__RL78__)
+  si_int exp = (rep & exponentMask) >> significandBits;
+  #else
   int exp = (rep & exponentMask) >> significandBits;
+  #endif
 
   // Abnormal cases:
   // 1) +/- inf returns +inf; NaN returns NaN
@@ -294,7 +312,11 @@ static __inline fp_t __compiler_rt_logbX(fp_t x) {
   } else {
     // Subnormal number; normalize and repeat
     rep &= absMask;
+    #if defined(__RL78__)
+    const si_int shift = 1 - normalize(&rep);
+    #else
     const int shift = 1 - normalize(&rep);
+    #endif
     exp = (rep & exponentMask) >> significandBits;
     return exp - exponentBias - shift; // Unbias exponent
   }

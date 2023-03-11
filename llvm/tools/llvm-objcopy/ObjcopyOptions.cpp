@@ -11,6 +11,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/COFF.h"
 #include "llvm/ObjCopy/CommonConfig.h"
 #include "llvm/ObjCopy/ConfigManager.h"
@@ -24,8 +25,86 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 
+#include "Exec.h"
+
 using namespace llvm;
 using namespace llvm::objcopy;
+
+#if defined(_WIN32) || defined(_M_X64) || defined(_WIN64)
+bool RunCmd(const char *cmd, int &exitCode) {
+  DWORD exit_code;
+  STARTUPINFOA si;
+  PROCESS_INFORMATION pi;
+
+  exitCode = 0;
+  ZeroMemory(&si, sizeof(si));
+  si.cb = sizeof(si);
+  ZeroMemory(&pi, sizeof(pi));
+
+  // Start the child process.
+  if (!CreateProcessA(NULL,       // No module name (use command line)
+                      (LPSTR)cmd, // Command line
+                      NULL,       // Process handle not inheritable
+                      NULL,       // Thread handle not inheritable
+                      FALSE,      // Set handle inheritance to FALSE
+                      0,          // No creation flags
+                      NULL,       // Use parent's environment block
+                      NULL,       // Use parent's starting directory
+                      &si,        // Pointer to STARTUPINFO structure
+                      &pi)        // Pointer to PROCESS_INFORMATION structure
+  ) {
+    printf("CreateProcess failed (%d).\n", GetLastError());
+    return false;
+  }
+
+  // Wait until child process exits.
+  WaitForSingleObject(pi.hProcess, INFINITE);
+
+  if (GetExitCodeProcess(pi.hProcess, &exit_code) == FALSE) {
+    printf("GetExitCodeProcess failed (%d).\n", GetLastError());
+    return false;
+  }
+
+  // Close process and thread handles.
+  CloseHandle(pi.hProcess);
+  CloseHandle(pi.hThread);
+ 
+  exitCode = (int)exit_code;
+
+  return true;
+}
+#else
+#include <unistd.h> /* for fork */
+#include <stdint.h>
+#include <stdlib.h>
+#include <sys/types.h> /* for pid_t */
+#include <sys/wait.h>  /* for wait */
+typedef uint32_t DWORD;
+typedef uint16_t WORD;
+typedef uint32_t UNINT32;
+typedef char CHAR;
+bool RunCmd(const char *cmd, int &exitCode) {
+
+  pid_t pid = fork();
+  int n;
+  if (pid < 0)
+    return false; // error creating child
+  if (pid == 0) { /* child process */
+    exitCode = system(cmd);
+    exit(exitCode);
+  } else {               /* pid!=0; parent process */
+    waitpid(pid, &n, 0); /* wait for child to exit */
+    if (WIFEXITED(n))
+      exitCode = WEXITSTATUS(n); // get the exit code
+    else
+      exitCode = -1;
+  }
+  if (exitCode == -1)
+    return false;
+  else
+    return true;
+}
+#endif 
 
 namespace {
 enum ObjcopyID {
@@ -316,6 +395,8 @@ static const StringMap<MachineInfo> TargetMap{
     {"elf32-sparc", {ELF::EM_SPARC, false, false}},
     {"elf32-sparcel", {ELF::EM_SPARC, false, true}},
     {"elf32-hexagon", {ELF::EM_HEXAGON, false, true}},
+    //RENESAS
+    {"elf32-rl78", {ELF::EM_RL78, false, true}},
 };
 
 static Expected<TargetInfo>
@@ -557,6 +638,7 @@ objcopy::parseObjcopyOptions(ArrayRef<const char *> RawArgsArr,
                              function_ref<Error(Error)> ErrorCallback) {
   DriverConfig DC;
   ObjcopyOptTable T;
+  int exitCode;
 
   const char *const *DashDash =
       std::find_if(RawArgsArr.begin(), RawArgsArr.end(),
@@ -665,6 +747,27 @@ objcopy::parseObjcopyOptions(ArrayRef<const char *> RawArgsArr,
   for (const auto *Arg : InputArgs.filtered(OBJCOPY_subsystem)) {
     StringRef Subsystem, Version;
     std::tie(Subsystem, Version) = StringRef(Arg->getValue()).split(':');
+#ifdef _WIN32
+    COFFConfig.Subsystem =
+        StringSwitch<unsigned>(Subsystem.lower())
+            .Case("boot_application",
+                  IMAGE_SUBSYSTEM_WINDOWS_BOOT_APPLICATION)
+            .Case("console", IMAGE_SUBSYSTEM_WINDOWS_CUI)
+            .Case("efi_application", IMAGE_SUBSYSTEM_EFI_APPLICATION)
+            .Case("efi_boot_service_driver",
+                  IMAGE_SUBSYSTEM_EFI_BOOT_SERVICE_DRIVER)
+            .Case("efi_rom", IMAGE_SUBSYSTEM_EFI_ROM)
+            .Case("efi_runtime_driver",
+                  IMAGE_SUBSYSTEM_EFI_RUNTIME_DRIVER)
+            .Case("native", IMAGE_SUBSYSTEM_NATIVE)
+            .Case("posix", IMAGE_SUBSYSTEM_POSIX_CUI)
+            .Case("windows", IMAGE_SUBSYSTEM_WINDOWS_GUI)
+            .Default(IMAGE_SUBSYSTEM_UNKNOWN);
+    if (*COFFConfig.Subsystem == IMAGE_SUBSYSTEM_UNKNOWN)
+      return createStringError(errc::invalid_argument,
+                               "'%s' is not a valid subsystem",
+                               Subsystem.str().c_str());
+#else
     COFFConfig.Subsystem =
         StringSwitch<unsigned>(Subsystem.lower())
             .Case("boot_application",
@@ -684,6 +787,7 @@ objcopy::parseObjcopyOptions(ArrayRef<const char *> RawArgsArr,
       return createStringError(errc::invalid_argument,
                                "'%s' is not a valid subsystem",
                                Subsystem.str().c_str());
+#endif
     if (!Version.empty()) {
       StringRef Major, Minor;
       std::tie(Major, Minor) = Version.split('.');
@@ -710,12 +814,22 @@ objcopy::parseObjcopyOptions(ArrayRef<const char *> RawArgsArr,
     if (OutputFormat.empty()) {
       Config.OutputFormat = Config.InputFormat;
     } else {
-      Expected<TargetInfo> Target =
-          getOutputTargetInfoByTargetName(OutputFormat);
-      if (!Target)
-        return Target.takeError();
-      Config.OutputFormat = Target->Format;
-      Config.OutputArch = Target->Machine;
+      // Expected<TargetInfo> Target =
+      //     getOutputTargetInfoByTargetName(OutputFormat);
+      // if (!Target)
+      //   return Target.takeError();
+      // Config.OutputFormat = Target->Format;
+      // Config.OutputArch = Target->Machine;
+      // ToDo: RL78 only?
+      unsigned Index = 0, End = InputArgs.size();
+      std::string Str = "rl78-elf-objcopy";
+      while (Index <= End) {
+        const Twine OptionArg = InputArgs.getArgString(Index);
+        Str = Str + " " + OptionArg.str();
+        ++Index;
+      }
+      RunCmd(Str.c_str(), exitCode);
+      exit(exitCode);
     }
   }
 

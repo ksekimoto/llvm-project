@@ -1554,7 +1554,8 @@ Value *llvm::emitMemCmp(Value *Ptr1, Value *Ptr2, Value *Len, IRBuilderBase &B,
                         const DataLayout &DL, const TargetLibraryInfo *TLI) {
   LLVMContext &Context = B.GetInsertBlock()->getContext();
   return emitLibCall(
-      LibFunc_memcmp, B.getInt32Ty(),
+      // RL78
+      LibFunc_memcmp, B.getInt16Ty(),
       {B.getInt8PtrTy(), B.getInt8PtrTy(), DL.getIntPtrType(Context)},
       {castToCStr(Ptr1, B), castToCStr(Ptr2, B), Len}, B, TLI);
 }
@@ -1563,7 +1564,8 @@ Value *llvm::emitBCmp(Value *Ptr1, Value *Ptr2, Value *Len, IRBuilderBase &B,
                       const DataLayout &DL, const TargetLibraryInfo *TLI) {
   LLVMContext &Context = B.GetInsertBlock()->getContext();
   return emitLibCall(
-      LibFunc_bcmp, B.getInt32Ty(),
+      // RL78 
+      LibFunc_bcmp, B.getInt16Ty(),
       {B.getInt8PtrTy(), B.getInt8PtrTy(), DL.getIntPtrType(Context)},
       {castToCStr(Ptr1, B), castToCStr(Ptr2, B), Len}, B, TLI);
 }
