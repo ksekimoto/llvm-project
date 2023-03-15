@@ -1303,6 +1303,20 @@ void JSONNodeDumper::VisitCallExpr(const CallExpr *CE) {
 void JSONNodeDumper::VisitUnaryExprOrTypeTraitExpr(
     const UnaryExprOrTypeTraitExpr *TTE) {
   JOS.attribute("name", getTraitSpelling(TTE->getKind()));
+
+#if 0
+// 2023/03/12 KS Added for RL78
+  switch (TTE->getKind()) {
+  case UETT_SizeOf: JOS.attribute("name", "sizeof"); break;
+  case UETT_AlignOf: JOS.attribute("name", "alignof"); break;
+  case UETT_VecStep:  JOS.attribute("name", "vec_step"); break;
+  case UETT_PreferredAlignOf:  JOS.attribute("name", "__alignof"); break;
+  case UETT_OpenMPRequiredSimdAlign:
+    JOS.attribute("name", "__builtin_omp_required_simd_align"); break;
+  case UETT_SecTop: JOS.attribute("name", "__sectop"); break;
+  case UETT_SecEnd: JOS.attribute("name", "__secend"); break;
+  }
+#endif
   if (TTE->isArgumentType())
     JOS.attribute("argType", createQualType(TTE->getArgumentType()));
 }

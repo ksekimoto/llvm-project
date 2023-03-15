@@ -56,6 +56,9 @@ enum UnaryExprOrTypeTrait {
 #define UNARY_EXPR_OR_TYPE_TRAIT(Spelling, Name, Key) +1
 #define CXX11_UNARY_EXPR_OR_TYPE_TRAIT(Spelling, Name, Key) +1
 #include "clang/Basic/TokenKinds.def"
+    // 2023/03/12 KS Added for RL78
+    // UETT_SecTop,
+    // UETT_SecEnd,
 };
 
 /// Return the internal name of type trait \p T. Never null.

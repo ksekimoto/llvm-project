@@ -135,20 +135,17 @@ __asm__(".pushsection .fini,\"ax\",@progbits\n\t"
 __asm__(".pushsection .fini,\"ax\",@progbits\n\t"
     "call " __USER_LABEL_PREFIX__ "__do_fini\n\t"
     ".popsection");
-<<<<<<< HEAD
 #elif defined(__xtensa__)
 __asm__(".pushsection .fini.literal,\"ax\",@progbits\n\t"
     ".popsection\n\t"
     ".pushsection .fini,\"ax\",@progbits\n\t"
     "movi a8, __do_fini\n\t"
     "callx8 a8\n\t"
-=======
 #elif defined(__RL78__)	
 	__asm__("	.global	__do_fini \n\t"
 	".type	__do_fini,@function");
 __asm__(".pushsection .fini,\"ax\",@progbits\n\t"
     "call !!___do_fini\n\t"
->>>>>>> bllvmorg-15.0.6_rl78
     ".popsection");
 #else
 #error "crtbegin without .init_fini array unimplemented for this architecture"

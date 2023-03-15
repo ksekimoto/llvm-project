@@ -364,6 +364,16 @@ KEYWORD(using                       , KEYCXX)
 KEYWORD(virtual                     , KEYCXX)
 KEYWORD(wchar_t                     , WCHARSUPPORT)
 
+// 2023/03/12 KS Added for RL78
+// Renesas RL78 address space identifiers.
+KEYWORD(__near                      , KEYRL78)
+KEYWORD(__far                       , KEYRL78)
+// Renesas CC Extensions.
+KEYWORD(__saddr                     , KEYRENESASCC)
+KEYWORD(__callt                     , KEYRENESASCC)
+// KEYWORD(__sectop                    , KEYRENESASCC)
+// KEYWORD(__secend                    , KEYRENESASCC)
+
 // C++ 2.5p2: Alternative Representations.
 CXX_KEYWORD_OPERATOR(and     , ampamp)
 CXX_KEYWORD_OPERATOR(and_eq  , ampequal)
@@ -604,6 +614,10 @@ KEYWORD(__noinline__                , KEYCUDA)
 
 // OpenMP Type Traits
 UNARY_EXPR_OR_TYPE_TRAIT(__builtin_omp_required_simd_align, OpenMPRequiredSimdAlign, KEYALL)
+
+// 2023/03/12 KS Added for RL78
+UNARY_EXPR_OR_TYPE_TRAIT(__sectop, SecTop, KEYALL)
+UNARY_EXPR_OR_TYPE_TRAIT(__secend, SecEnd, KEYALL)
 
 // Borland Extensions.
 KEYWORD(__pascal                    , KEYALL)

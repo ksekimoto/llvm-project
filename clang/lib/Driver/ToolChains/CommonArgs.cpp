@@ -349,6 +349,19 @@ static StringRef getWebAssemblyTargetCPU(const ArgList &Args) {
   return "generic";
 }
 
+/// Get the (LLVM) name of the RL78 CPU we are targeting.
+static std::string getRL78TargetCPU(const ArgList &Args) {
+  if (Arg *A = Args.getLastArg(options::OPT_mcpu_EQ)) {
+    const char *CPUName = A->getValue();
+    return llvm::StringSwitch<const char *>(CPUName)
+        .Cases("S1", "s1", "RL78_S1")
+		.Cases("S2", "s2", "RL78_S2")
+		.Cases("S3", "s3", "RL78_S3")
+        .Default(CPUName);
+  }
+  return "RL78_S3";
+}
+
 std::string tools::getCPUName(const Driver &D, const ArgList &Args,
                               const llvm::Triple &T, bool FromAs) {
   Arg *A;
@@ -467,8 +480,23 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
     if (const Arg *A = Args.getLastArg(options::OPT_mcpu_EQ))
       return A->getValue();
     return "";
+  case llvm::Triple::RL78:
+    return getRL78TargetCPU(Args);
   }
 }
+
+#if 0
+// 2023/03/12 KS Added for RL78
+unsigned tools::getLTOParallelism(const ArgList &Args, const Driver &D) {
+  unsigned Parallelism = 0;
+  /*Arg *LtoJobsArg = Args.getLastArg(options::OPT_flto_jobs_EQ);
+  if (LtoJobsArg &&
+      StringRef(LtoJobsArg->getValue()).getAsInteger(10, Parallelism))
+    D.Diag(diag::err_drv_invalid_int_value) << LtoJobsArg->getAsString(Args)
+                                            << LtoJobsArg->getValue();*/
+  return Parallelism;
+}
+#endif
 
 llvm::StringRef tools::getLTOParallelism(const ArgList &Args, const Driver &D) {
   Arg *LtoJobsArg = Args.getLastArg(options::OPT_flto_jobs_EQ);

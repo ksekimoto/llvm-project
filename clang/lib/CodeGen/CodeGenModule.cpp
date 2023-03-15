@@ -3919,7 +3919,9 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
     // (If function is requested for a definition, we always need to create a new
     // function, not just return a bitcast.)
     if (!IsForDefinition)
-      return llvm::ConstantExpr::getBitCast(Entry, Ty->getPointerTo());
+      // 2023/03/12 KS Added for RL78
+      // return llvm::ConstantExpr::getBitCast(Entry, Ty->getPointerTo());
+      return llvm::ConstantExpr::getBitCast(Entry, Ty->getPointerTo(Entry->getAddressSpace()));
   }
 
   // This function doesn't have a complete type (for example, the return
@@ -3935,9 +3937,30 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
     IsIncompleteFunction = true;
   }
 
+// 2023/03/12 KS Added for RL78
+#if 0
   llvm::Function *F =
       llvm::Function::Create(FTy, llvm::Function::ExternalLinkage,
                              Entry ? StringRef() : MangledName, &getModule());
+#endif
+
+  llvm::Function *F = nullptr;
+  if (Context.getLangOpts().RenesasRL78) {
+    unsigned int FunctionAddressSpace =
+        Context.getLangOpts().RenesasRL78CodeModel
+            ? Context.getTargetAddressSpace(LangAS::__far)
+            : Context.getTargetAddressSpace(LangAS::Default);
+    if (const FunctionDecl *FD = cast_or_null<FunctionDecl>(D))
+      FunctionAddressSpace = Context.getTargetAddressSpace(FD->getType());
+    F = llvm::Function::Create(FTy, llvm::Function::ExternalLinkage,
+                               FunctionAddressSpace,
+                               Entry ? StringRef() : MangledName, &getModule());
+  } else {
+    F = llvm::Function::Create(FTy, llvm::Function::ExternalLinkage,
+                                +Entry ? StringRef() : MangledName,
+                                &getModule());
+    
+  }
 
   // If we already created a function with the same mangled name (but different
   // type) before, take its name and add it to the list of functions to be
@@ -4565,6 +4588,9 @@ LangAS CodeGenModule::GetGlobalConstantAddressSpace() const {
     // UniformConstant storage class is not viable as pointers to it may not be
     // casted to Generic pointers which are used to model HIP's "flat" pointers.
     return LangAS::cuda_device;
+// 2023/03/12 KS Added for RL78
+  if(LangOpts.getRenesasRL78RomModel() == clang::LangOptions::RL78RomModelKind::Far)
+    return LangAS::__far;
   if (auto AS = getTarget().getConstantAddressSpace())
     return *AS;
   return LangAS::Default;

@@ -2182,10 +2182,11 @@ class UnaryOperator final
 public:
   typedef UnaryOperatorKind Opcode;
 
-protected:
+// 2023/03/12 KS Modified for RL78
   UnaryOperator(const ASTContext &Ctx, Expr *input, Opcode opc, QualType type,
                 ExprValueKind VK, ExprObjectKind OK, SourceLocation l,
                 bool CanOverflow, FPOptionsOverride FPFeatures);
+protected:
 
   /// Build an empty unary operator.
   explicit UnaryOperator(bool HasFPFeatures, EmptyShell Empty)

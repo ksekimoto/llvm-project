@@ -47,6 +47,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Allocator.h"
+#include "llvm/Support/CharSet.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include <cassert>
@@ -205,9 +206,18 @@ public:
   ///
   /// \param Loc If specified, is the location that invalid file diagnostics
   ///   will be emitted at.
+#ifdef SUPPORT_CHARSET
+    ///
+    /// \param Invalid If non-NULL, will be set \c true if an error occurred.
+    const llvm::MemoryBuffer *
+    getBuffer(DiagnosticsEngine &Diag, FileManager &FM,
+              SourceLocation Loc = SourceLocation(), bool *Invalid = nullptr,
+              llvm::CharSetConverter *Converter = nullptr) const;
+#else
   llvm::Optional<llvm::MemoryBufferRef>
   getBufferOrNone(DiagnosticsEngine &Diag, FileManager &FM,
                   SourceLocation Loc = SourceLocation()) const;
+#endif
 
   /// Returns the size of the content encapsulated by this
   /// ContentCache.

@@ -174,6 +174,9 @@ def m_mips_Features_Group : OptionGroup<"<mips features group>">,
                             Group<m_Group>, DocName<"MIPS">;
 def m_ppc_Features_Group : OptionGroup<"<ppc features group>">,
                            Group<m_Group>, DocName<"PowerPC">;
+// 2023/03/12 KS Added for RL78
+def m_rl78_Features_Group : OptionGroup<"<RL78 features group>">,
+                           Group<m_Group>, DocName<"RL78">;
 def m_wasm_Features_Group : OptionGroup<"<wasm features group>">,
                             Group<m_Group>, DocName<"WebAssembly">;
 // The features added by this group will not be added to target features.
@@ -4471,6 +4474,45 @@ foreach i = {0-6} in
 foreach i = {0-7} in
   def ffixed_d#i : Flag<["-"], "ffixed-d"#i>, Group<m_m68k_Features_Group>,
     HelpText<"Reserve the d"#i#" register (M68k only)">;
+
+// 2023/03/12 KS Added for RL78
+// RL78 options.
+def frenesas_extensions : Flag<["-"], "frenesas-extensions">, Group<f_Group>,
+  Flags<[CC1Option]>, HelpText<"Use Renesas CC Extensions.">;
+def frenesas_vaarg : Flag<["-"], "frenesas-vaarg">, Group<f_Group>,
+  Flags<[CC1Option]>, HelpText<"Promote near variable arg pointers to far.">;
+def fnewlib_nano : Flag<["-"], "fnewlib-nano">, Group<f_Group>,
+  Flags<[CC1Option]>, HelpText<"Uses newlib nano optimized libc_nano.a instead of libc.a.">;
+def fno_renesas_extensions : Flag<["-"], "fno-renesas-extensions">, Group<f_Group>,
+  Flags<[CC1Option]>;
+def mirror_source_EQ : Joined<["-"], "mirror-source=">, Group<m_Group>,
+  Flags<[CC1Option]>, HelpText<"Specify the value to be set in the MAA register. [0|1|common]">;
+def mirror_source_0 : Joined<["-"], "mmirror-source-0">, Group<m_rl78_Features_Group>,
+  Flags<[CC1Option, HelpHidden]>, HelpText<"Set the mirror source to 0.">;
+def mirror_source_1 : Joined<["-"], "mmirror-source-1">, Group<m_rl78_Features_Group>,
+  Flags<[CC1Option, HelpHidden]>, HelpText<"Set the mirror source to 1.">;
+def mirror_source_common : Joined<["-"], "mmirror-source-common">, Group<m_rl78_Features_Group>,
+  Flags<[CC1Option, HelpHidden]>, HelpText<"Set the mirror source to common.">;
+def mfar_code : Flag<["-"], "mfar-code">, Group<m_rl78_Features_Group>,
+  Flags<[CC1Option]>, HelpText<"Default function pointers are far.">;
+def mnear_code : Flag<["-"], "mnear-code">, Group<m_rl78_Features_Group>,
+  Flags<[CC1Option]>, HelpText<"Default function pointers are near.">;
+def mfar_data : Flag<["-"], "mfar-data">, Group<m_rl78_Features_Group>,
+  Flags<[CC1Option]>, HelpText<"Default data pointers are far.">;
+def mnear_data : Flag<["-"], "mnear-data">, Group<m_rl78_Features_Group>,
+  Flags<[CC1Option]>, HelpText<"Default data pointers are near.">;
+def mfar_rom : Flag<["-"], "mfar-rom">, Group<m_rl78_Features_Group>,
+  Flags<[CC1Option]>, HelpText<"Default constant data pointers are far.">;
+def mnear_rom : Flag<["-"], "mnear-rom">, Group<m_rl78_Features_Group>,
+  Flags<[CC1Option]>, HelpText<"Default constant data pointers are near.">;
+def mcommon_rom : Flag<["-"], "mcommon-rom">, Group<m_rl78_Features_Group>,
+  Flags<[CC1Option]>;
+def fsim : Flag<["-"], "fsim">, Group<f_Group>,
+  Flags<[CC1Option]>, HelpText<"Specifies program will be run on the simulator.">;
+def m64bit_doubles : Flag<["-"], "m64bit-doubles">, Group<m_rl78_Features_Group>,
+  Flags<[CC1Option]>, HelpText<"Use 64-bit Doubles.">;
+def mdisable_mda : Flag<["-"], "mdisable-mda">, Group<m_rl78_Features_Group>,
+  Flags<[CC1Option]>, HelpText<"Disable usage of Mul/Div/Mac accelerator (S2 only).">;
 
 // X86 feature flags
 def mx87 : Flag<["-"], "mx87">, Group<m_x86_Features_Group>;

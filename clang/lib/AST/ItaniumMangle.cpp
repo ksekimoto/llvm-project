@@ -2684,6 +2684,12 @@ void CXXNameMangler::mangleQualifiers(Qualifiers Quals, const DependentAddressSp
         break;
       case LangAS::ptr64:
         ASString = "ptr64";
+// 2023/03/12 KS Added for RL78
+      case LangAS::__near:
+        ASString = "__near";
+        break;
+      case LangAS::__far:
+        ASString = "__far";
         break;
       }
     }
@@ -4688,6 +4694,16 @@ recurse:
       unsigned DiagID = Diags.getCustomDiagID(
           DiagnosticsEngine::Error,
           "cannot yet mangle __builtin_omp_required_simd_align expression");
+      Diags.Report(DiagID);
+      return;
+    }
+// 2023/03/12 KS Added for RL78
+    case UETT_SecTop:
+    case UETT_SecEnd: {
+      DiagnosticsEngine &Diags = Context.getDiags();
+      unsigned DiagID = Diags.getCustomDiagID(
+          DiagnosticsEngine::Error,
+          "cannot yet mangle __sectop/__secend expression");
       Diags.Report(DiagID);
       return;
     }

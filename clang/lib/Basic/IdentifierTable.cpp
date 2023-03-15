@@ -109,7 +109,10 @@ namespace {
     KEYMSCOMPAT   = 0x800000,
     KEYSYCL       = 0x1000000,
     KEYCUDA       = 0x2000000,
-    KEYMAX        = KEYCUDA, // The maximum key
+// 2023/03/23 KS Added for RL78
+    KEYRL78       = 0x4000000,
+    KEYRENESASCC  = 0x8000000,
+    KEYMAX        = KEYRENESASCC, // The maximum key
     KEYALLCXX = KEYCXX | KEYCXX11 | KEYCXX20,
     KEYALL = (KEYMAX | (KEYMAX-1)) & ~KEYNOMS18 &
              ~KEYNOOPENCL // KEYNOMS18 and KEYNOOPENCL are used to exclude.
@@ -156,6 +159,9 @@ static KeywordStatus getKeywordStatus(const LangOptions &LangOpts,
   if (LangOpts.Coroutines && (Flags & KEYCOROUTINES)) return KS_Enabled;
   if (LangOpts.ModulesTS && (Flags & KEYMODULES)) return KS_Enabled;
   if (LangOpts.CPlusPlus && (Flags & KEYALLCXX)) return KS_Future;
+// 2023/03/12 KS Added for RL78
+  if (LangOpts.RenesasRL78 && (Flags & KEYRL78)) return KS_Extension;
+  if (LangOpts.RenesasExt && (Flags & KEYRENESASCC)) return KS_Extension;
   if (LangOpts.CPlusPlus && !LangOpts.CPlusPlus20 && (Flags & CHAR8SUPPORT))
     return KS_Future;
   if (LangOpts.isSYCL() && (Flags & KEYSYCL))

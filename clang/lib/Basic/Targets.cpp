@@ -41,6 +41,8 @@
 #include "Targets/X86.h"
 #include "Targets/XCore.h"
 #include "Targets/Xtensa.h"
+// 2023/03/12 KS Added for RL78
+#include "Targets/RL78.h"
 #include "clang/Basic/Diagnostic.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Triple.h"
@@ -129,6 +131,10 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
 
   case llvm::Triple::lanai:
     return new LanaiTargetInfo(Triple, Opts);
+
+// 2023/03/12 KS Added for RL78
+  case llvm::Triple::RL78:
+    return new RL78TargetInfo(Triple, Opts);
 
   case llvm::Triple::aarch64_32:
     if (Triple.isOSDarwin())

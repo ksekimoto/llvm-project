@@ -303,6 +303,12 @@ public:
     All,
   };
 
+  enum class RL78RomModelKind {
+    Near,
+    Common,
+    Far
+  };
+
   enum class AltivecSrcCompatKind {
     // All vector compares produce scalars except vector pixel and vector bool.
     // The types vector pixel and vector bool return vector results.
@@ -452,6 +458,13 @@ public:
   /// Indicates whether the front-end is explicitly told that the
   /// input is a header file (i.e. -x c-header).
   bool IsHeaderFile = false;
+
+  // 2023/03/12 KS Modified for RL78
+  /// Name of the input charset to convert to the internal charset.
+  std::string InputCharset;
+
+  /// Name of the exec charset to convert the internal charset to.
+  std::string ExecCharset;
 
   /// The default stream kind used for HIP kernel launching.
   GPUDefaultStreamKind GPUDefaultStream;
