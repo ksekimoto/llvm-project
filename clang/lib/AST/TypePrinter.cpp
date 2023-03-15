@@ -1026,6 +1026,9 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
     OS << " __attribute__((no_caller_saved_registers))";
   if (Info.getNoCfCheck())
     OS << " __attribute__((nocf_check))";
+// 2023/03/12 KS Added for RL78
+  if (Info.getFar())
+    OS << " __far";
 }
 
 void TypePrinter::printFunctionNoProtoBefore(const FunctionNoProtoType *T,
@@ -2228,6 +2231,11 @@ std::string Qualifiers::getAddrSpaceAsString(LangAS AS) {
     return "__uptr __ptr32";
   case LangAS::ptr64:
     return "__ptr64";
+// 2023/03/12 KS Added for RL78
+  case LangAS::__near:
+    return "__near";
+  case LangAS::__far:
+    return "__far";
   default:
     return std::to_string(toTargetAddressSpace(AS));
   }

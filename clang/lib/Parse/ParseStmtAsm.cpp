@@ -379,6 +379,8 @@ StmtResult Parser::ParseMicrosoftAsmStatement(SourceLocation AsmLoc) {
   SourceManager &SrcMgr = PP.getSourceManager();
   SourceLocation EndLoc = AsmLoc;
   SmallVector<Token, 4> AsmToks;
+// 2023/03/12 KS Added for RL78
+ const llvm::Triple &TheTriple = Actions.Context.getTargetInfo().getTriple();
 
   bool SingleLineMode = true;
   unsigned BraceNesting = 0;
@@ -478,8 +480,13 @@ StmtResult Parser::ParseMicrosoftAsmStatement(SourceLocation AsmLoc) {
         Tok.clearFlag(Token::LeadingSpace);
         AsmToks.push_back(Tok);
       }
-      EndLoc = ConsumeBrace();
+      // 2023/03/12 KS Added for RL78
+      // EndLoc = ConsumeBrace();
+      // BraceNesting--;
       BraceNesting--;
+      if(TheTriple.isRL78())
+        break;
+      EndLoc = ConsumeBrace();
       // Finish if all of the opened braces in the inline asm section were
       // consumed.
       if (BraceNesting == 0 && !SingleLineMode)
@@ -530,10 +537,11 @@ StmtResult Parser::ParseMicrosoftAsmStatement(SourceLocation AsmLoc) {
   SmallVector<StringRef, 4> ClobberRefs;
 
   // We need an actual supported target.
-  const llvm::Triple &TheTriple = Actions.Context.getTargetInfo().getTriple();
+//   const llvm::Triple &TheTriple = Actions.Context.getTargetInfo().getTriple();
   const std::string &TT = TheTriple.getTriple();
   const llvm::Target *TheTarget = nullptr;
-  if (!TheTriple.isX86()) {
+// 2023/03/12 KS Added for RL78
+  if (!TheTriple.isX86() && !TheTriple.isRL78()) {
     Diag(AsmLoc, diag::err_msasm_unsupported_arch) << TheTriple.getArchName();
   } else {
     std::string Error;

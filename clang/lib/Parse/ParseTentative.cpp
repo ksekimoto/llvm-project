@@ -1690,6 +1690,13 @@ Parser::isCXXDeclarationSpecifier(Parser::TPResult BracedCastResult,
   case tok::kw__Atomic:
     return TPResult::True;
 
+  // 2023/03/12 KS Added for RL78
+  // RL78 address space qualifiers
+  case tok::kw___far:
+  case tok::kw___near:
+    if (getLangOpts().RenesasRL78)
+      return TPResult::True;
+
   case tok::kw__BitInt:
   case tok::kw__ExtInt: {
     if (NextToken().isNot(tok::l_paren))

@@ -656,6 +656,8 @@ bool TargetInfo::validateOutputConstraint(ConstraintInfo &Info) const {
       // FIXME: Check that there is a another register after this one.
       break;
     case 'r': // general register.
+// 2023/03/12 KS Added for RL78
+    case 'R': // general register.
       Info.setAllowsRegister();
       break;
     case 'm': // memory operand.

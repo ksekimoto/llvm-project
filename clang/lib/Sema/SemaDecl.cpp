@@ -3728,10 +3728,32 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
     }
   }
 
+// 2023/03/12 KS Added for RL78
+   if (OldTypeInfo.getFar() != NewTypeInfo.getFar()) {
+    if (OldTypeInfo.getNonDefaultAS())
+      Diag(New->getLocation(), diag::error_rl78_storage_attribute)
+          << (OldTypeInfo.getFar() ? "__far" : "__near");
+    else
+      Diag(New->getLocation(), diag::error_rl78_storage_attribute)
+          << (OldTypeInfo.getFar() ? "implicit __far" : "implicit __near");
+    Diag(OldLocation, diag::note_previous_declaration);
+    return true;
+   }
+
   // FIXME: diagnose the other way around?
   if (OldTypeInfo.getNoReturn() && !NewTypeInfo.getNoReturn()) {
     NewTypeInfo = NewTypeInfo.withNoReturn(true);
     RequiresAdjustment = true;
+  }
+
+// 2023/03/12 KS Added for RL78
+  if (getLangOpts().RenesasRL78 &&
+      (New->hasAttr<RL78CalltAttr>() && !Old->hasAttr<RL78CalltAttr>() ||
+       !New->hasAttr<RL78CalltAttr>() && Old->hasAttr<RL78CalltAttr>())) {
+    Diag(New->getLocation(), diag::error_rl78_callt_change)
+        << New->hasAttr<RL78CalltAttr>();
+    Diag(OldLocation, diag::note_previous_declaration);
+    return true;
   }
 
   // Merge regparm attribute.
@@ -6587,6 +6609,23 @@ Sema::ActOnTypedefDeclarator(Scope* S, Declarator& D, DeclContext* DC,
     return nullptr;
   }
 
+// 2023/03/12 KS Added for RL78
+   if (getLangOpts().RenesasExt) {
+
+    for (const auto &entry : RenesasCCRLPragmaEntries)
+      if (entry.Identifier.compare(std::string(D.getName().Identifier->getName())) == 0) {
+        // TODO: free memory
+        // TODO: check that we don't have conflicting attributes
+        switch (entry.PragmaType) {
+        case Sema::RenesasCCRLPragmaType::CCRLSaddr:
+          Diag(D.getName().StartLocation, diag::err_rl78_saddr_not_applicable);
+          break;
+        default:
+          break;
+        };
+      }
+  }
+
   TypedefDecl *NewTD = ParseTypedefDecl(S, D, TInfo->getType(), TInfo);
   if (!NewTD) return nullptr;
 
@@ -6826,6 +6865,106 @@ void Sema::deduceOpenCLAddressSpace(ValueDecl *Decl) {
     if (Type->isArrayType())
       Type = QualType(Context.getAsArrayType(Type), 0);
     Decl->setType(Type);
+  }
+}
+
+// 2023/03/12 KS Added for RL78
+static QualType rebuildArrayWithNewElementType(ASTContext &Context, QualType ArrayQTy, QualType NewElementQTy) {
+  
+    if (ArrayQTy.getTypePtr()->isArrayType()) {
+    const Type *ArrayTy = ArrayQTy.getTypePtr();
+    const ArrayType *AT = ArrayTy->getAsArrayTypeUnsafe();
+    QualType OldElementTy = AT->getElementType();
+    if (OldElementTy != NewElementQTy) {
+      if (ArrayTy->isIncompleteArrayType()) {
+        ArrayQTy =
+            Context.getIncompleteArrayType(NewElementQTy, AT->getSizeModifier(),
+                                           AT->getIndexTypeCVRQualifiers());
+      } else if (ArrayTy->isConstantArrayType()) {
+        const ConstantArrayType *AC = cast<ConstantArrayType>(AT);
+        ArrayQTy = Context.getConstantArrayType(
+            NewElementQTy, AC->getSize(), AC->getSizeExpr(),
+            AC->getSizeModifier(), AC->getIndexTypeCVRQualifiers());
+      } else if (ArrayTy->isVariableArrayType()) {
+        const VariableArrayType *AV = cast<VariableArrayType>(AT);
+        ArrayQTy = Context.getVariableArrayType(
+            NewElementQTy, AV->getSizeExpr(), AV->getSizeModifier(),
+            AV->getIndexTypeCVRQualifiers(), AV->getBracketsRange());
+      } else {
+        const DependentSizedArrayType *AD = cast<DependentSizedArrayType>(AT);
+        ArrayQTy = Context.getDependentSizedArrayType(
+            NewElementQTy, AD->getSizeExpr(), AD->getSizeModifier(),
+            AD->getIndexTypeCVRQualifiers(), AD->getBracketsRange());
+      }
+    }
+  }
+  return ArrayQTy;
+}
+
+void Sema::handleRL78AddressSpace(ValueDecl *Decl, bool IsParameter) {
+  if (VarDecl *Var = dyn_cast<VarDecl>(Decl)) {
+    QualType NewVarType = Var->getType();
+    // Handle automatic variables with address space
+    if (Decl->getType().hasAddressSpace() && Var->hasLocalStorage()) {
+      if (NewVarType->isArrayType()) {
+        NewVarType = rebuildArrayWithNewElementType(
+            Context, NewVarType,
+            Context.removeAddrSpaceQualType(
+                NewVarType->getAsArrayTypeUnsafe()->getElementType()));
+      } else if (const TypeOfExprType *TypeOfType =
+                     dyn_cast<TypeOfExprType>(NewVarType)) {
+        // Handle the following case:
+        // const _far int b;
+        // void foo() {
+        //  typeof(b) c;
+        //}
+        NewVarType = Context.removeAddrSpaceQualType(TypeOfType->desugar());
+      } else {
+        NewVarType = Context.removeAddrSpaceQualType(NewVarType);
+      }
+      // CC-RL emits a warning and ignores __far/__near when used on automatic
+      // variables
+      Diag(Decl->getLocation(), diag::warn_ignored_as_qualifier);
+    } else if(!NewVarType->isPointerType()) {
+      // Pointers are already handled in GetFullTypeForDeclarator
+
+      // If -mfar-rom is specified make all global constants __far except the
+      // ones explictly marked as __near.
+
+      // If __far data model make all global variables __far except the ones
+      // explictly marked as
+      // __near, saddr, const or have the address space set.
+      if ((getLangOpts().RenesasRL78DataModel &&
+               !Var->hasAttr<RL78SaddrAttr>() &&
+               !NewVarType.getQualifiers().hasConst() ||
+           getLangOpts().getRenesasRL78RomModel() == LangOptions::RL78RomModelKind::Far &&
+               NewVarType.getQualifiers().hasConst()) &&
+          NewVarType.getQualifiers().getAddressSpace() == LangAS::Default) {
+
+          if (!Var->hasLocalStorage()) {
+
+          if (NewVarType->isArrayType()) {
+            // If it's an array type, set the element type to far then recreate
+            // the array.
+            QualType NewElementType =
+                NewVarType->getAsArrayTypeUnsafe()->getElementType();
+            if (!NewElementType->isPointerType() || NewElementType->isPointerType() && !NewElementType->getPointeeType()->isFunctionType()) {
+              NewElementType =
+                  Context.getAddrSpaceQualType(NewElementType, LangAS::__far);
+              NewVarType = rebuildArrayWithNewElementType(Context, NewVarType,
+                                                          NewElementType);
+            }
+          } else {
+            // Assume it's a simple global variable and set the address space
+            // directly.
+            NewVarType =
+                Context.getAddrSpaceQualType(NewVarType, LangAS::__far);
+          }
+        }
+      }
+    }
+    if (NewVarType != Var->getType())
+      Var->setType(NewVarType);
   }
 }
 
@@ -7713,6 +7852,12 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   // Handle attributes prior to checking for duplicates in MergeVarDecl
   ProcessDeclAttributes(S, NewVD, D);
 
+  // Handle default address space variables when -mfar-rom/-mfar-data
+  // was used.
+  if (Context.getTargetInfo().getTriple().isRL78()) {
+    handleRL78AddressSpace(NewVD, false);
+  }
+
   // FIXME: This is probably the wrong location to be doing this and we should
   // probably be doing this for more attributes (especially for function
   // pointer attributes such as format, warn_unused_result, etc.). Ideally
@@ -7949,6 +8094,117 @@ NamedDecl *Sema::ActOnVariableDeclarator(
 
   if (IsMemberSpecialization && !NewVD->isInvalidDecl())
     CompleteMemberSpecialization(NewVD, Previous);
+
+// 2023/03/12 KS Added for RL78
+  if (Context.getTargetInfo().getTriple().isRL78()) {
+
+    if (getLangOpts().RenesasExt)
+      for (const auto &entry : RenesasCCRLPragmaEntries)
+        if (entry.Identifier.compare(NewVD->getNameAsString()) == 0) {
+          // TODO: free memory
+          // TODO: check that we don't have conflicting attributes
+          switch (entry.PragmaType) {
+          case Sema::RenesasCCRLPragmaType::CCRLAddress: {
+            // TODO: alignment
+            // CCRL specification:
+            // When #pragma address is declared for a variable that is not a
+            // const-qualified variable and is explicitly or implicitly
+            // specified as near and if the specified absolute address is not in
+            // the range from 0x0F0000 to 0x0FFFFF, a compilation error will
+            // occur.
+            if ((!cast<VarDecl>(NewVD)->getType().isConstQualified()) &&
+                (cast<VarDecl>(NewVD)->getType().getAddressSpace() !=
+                 LangAS::__far) &&
+                ((entry.ExtraData < 0x0F0000) ||
+                 (entry.ExtraData > 0x0FFFFF))) {
+
+              Diag(NewVD->getLocation(), diag::err_expected)
+                  << "a non  const-qualified variable with address between 0x0F0000 and 0x0FFFFF";
+              break;
+            }
+
+             const TypeInfo EntryInfo =
+                NewVD->getASTContext().getTypeInfo(NewVD->getType());
+            //  Do not allocate a variable over a 64-Kbyte boundary
+            if (((entry.ExtraData + EntryInfo.Width / 8 - 1) & 0x0F0000) !=
+                (entry.ExtraData & 0x0F0000)) {
+              Diag(NewVD->getLocation(),
+                   diag::err_rl78_pragma_address_boundary);
+            }
+
+            // If a single address is specified for separate variables or the
+            // addresses allocated to separate variables overlap, an error will
+            // occur.
+            for (const auto &otherEntry : RenesasCCRLPragmaEntries)
+              if (entry.Identifier != otherEntry.Identifier &&
+                  otherEntry.PragmaType == entry.PragmaType &&
+                  otherEntry.PragmaType == RenesasCCRLPragmaType::CCRLAddress) {
+                if (entry.ExtraData == otherEntry.ExtraData ||
+                    (entry.ExtraData < otherEntry.ExtraData &&
+                     (entry.ExtraData + EntryInfo.Width / 8 - 1) >=
+                         otherEntry.ExtraData)) {
+                  Diag(entry.Loc, diag::err_rl78_pragma_address_conflict);
+                  Diag(otherEntry.Loc, diag::note_previous_declaration);
+                }
+                break;
+              }
+// 2023/03/12 TODO
+//
+//              unsigned alignment = Context.getTypeInfoDataSizeInChars(cast<VarDecl>(NewVD)->getType()).second.getQuantity();
+              unsigned alignment = 0;
+              if ((!cast<VarDecl>(NewVD)->getType().isConstQualified()) &&
+                (cast<VarDecl>(NewVD)->getType().getAddressSpace() !=
+                 LangAS::__far) &&
+                ((entry.ExtraData % alignment != 0))) {
+                  Diag(NewVD->getLocation(), diag::err_expected)
+					<< "a non  const-qualified variable with an even address";
+              break;
+            }
+            NewVD->addAttr(
+                RL78AddressAttr::CreateImplicit(Context, entry.ExtraData));
+            // Just add a dummy section attribute to:
+            // -avoid implicit section attributes being set.
+            // -avoid CommonLinkage.
+            // -generate warnings when unsed togheter with section attribute.
+            // Another solution will be to check for !hasAttr<RL78AddressAttr>()
+            // in various locations.
+            std::string buf;
+            llvm::raw_string_ostream stream(buf);
+            stream << (llvm::format_hex_no_prefix(entry.ExtraData, 5, true));
+            std::string section = "_AT" + stream.str();
+            NewVD->addAttr(SectionAttr::CreateImplicit(Context, section));
+            break;
+          }
+          case Sema::RenesasCCRLPragmaType::CCRLSaddr: {
+            // OR: if(NewVD->getType().getQualifiers().getAddressSpace() ==
+            // LangAS::__far) NewVD->dump(); pragma saddr overrides __near/__far
+            // (see CCRL specification).
+            if (NewVD->getType().hasAddressSpace()) {
+              NewVD->setType(Context.removeAddrSpaceQualType(NewVD->getType()));
+            }
+            // If __saddr is specified for a const type variable, a compilation
+            // error will occur.
+            // If __saddr is specified for a variable which does not have static
+            // storage duration, a compilation error will occur.
+            if (NewVD->getType().isConstQualified() ||
+                (NewVD->isLocalVarDeclOrParm() && !NewVD->isStaticLocal() &&
+                 !NewVD->isExternC())) {
+              Diag(D.getName().StartLocation,
+                   diag::err_rl78_saddr_not_applicable);
+              break;
+            }
+
+            // NewVD->dump();
+            NewVD->addAttr(RL78SaddrAttr::CreateImplicit(Context));
+            break;
+          }
+          default:
+            break;
+          }
+          //RenesasCCRLPragmaEntries.erase(&entry);
+          break;
+        }
+  }
 
   return NewVD;
 }
@@ -8350,7 +8606,8 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
   // This includes arrays of objects with address space qualifiers, but not
   // automatic variables that point to other address spaces.
   // ISO/IEC TR 18037 S5.1.2
-  if (!getLangOpts().OpenCL && NewVD->hasLocalStorage() &&
+// 2023/03/12 KS Added for RL78
+  if (!getLangOpts().OpenCL && !getLangOpts().RenesasRL78 && NewVD->hasLocalStorage() &&
       T.getAddressSpace() != LangAS::Default) {
     Diag(NewVD->getLocation(), diag::err_as_qualified_auto_decl) << 0;
     NewVD->setInvalidDecl();
@@ -9394,6 +9651,17 @@ static Scope *getTagInjectionScope(Scope *S, const LangOptions &LangOpts) {
   return S;
 }
 
+static void dropFarFromFunctionDecl(ASTContext &Context, FunctionDecl *NewFD) {
+  if (NewFD->getType().getAddressSpace() == LangAS::__far) {
+    const FunctionProtoType *FPT =
+        NewFD->getType()->castAs<FunctionProtoType>();
+    FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
+    EPI.ExtInfo = EPI.ExtInfo.withFar(false);
+    NewFD->setType(Context.getFunctionType(FPT->getReturnType(),
+                                           FPT->getParamTypes(), EPI));
+  }
+}
+
 /// Determine whether a declaration matches a known function in namespace std.
 static bool isStdBuiltin(ASTContext &Ctx, FunctionDecl *FD,
                          unsigned BuiltinID) {
@@ -9944,6 +10212,26 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     NewFD->addAttr(C11NoReturnAttr::Create(Context,
                                            D.getDeclSpec().getNoreturnSpecLoc(),
                                            AttributeCommonInfo::AS_Keyword));
+
+// 2023/03/12 KS Added for RL78
+  // When dealing with RL78, we should also apply any implicit address spaces
+  // since we didn't add them when we created the typedef
+  // @code
+  // typedef void fn(int);
+  // fn f;
+  // @endcode
+  if (getLangOpts().RenesasRL78CodeModel &&
+      NewFD->getType().getAddressSpace() == LangAS::Default &&
+      !D.isFunctionDeclarator(FTIIdx)) {
+    if (const FunctionProtoType *FT = R->getAs<FunctionProtoType>()) {
+      const FunctionProtoType *FPT =
+          NewFD->getType()->castAs<FunctionProtoType>();
+      FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
+      EPI.ExtInfo = EPI.ExtInfo.withFar(true);
+      NewFD->setType(Context.getFunctionType(FPT->getReturnType(),
+                                             FPT->getParamTypes(), EPI));
+    }
+  }
 
   // Functions returning a variably modified type violate C99 6.7.5.2p2
   // because all functions have linkage.
@@ -10511,6 +10799,92 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       break;
     }
 
+// 2023/03/12 KS Added for RL78
+  if (Context.getTargetInfo().getTriple().isRL78()) {
+    if (getLangOpts().RenesasExt) {
+      for (const auto &entry : RenesasCCRLPragmaEntries)
+        if (entry.Identifier.compare(NewFD->getNameAsString()) == 0) {
+          // TODO: free memory
+          // TODO: check params, return type etc.
+          // TODO: check that we don't have conflicting attributes
+          switch (entry.PragmaType) {
+          case Sema::RenesasCCRLPragmaType::CCRLInterrupt:
+            // Silently drop __far or #pragma __far if vect was specified
+            if(!entry.ExtraDataVects.empty())
+                dropFarFromFunctionDecl(Context, NewFD);
+            NewFD->addAttr(
+                RL78InterruptAttr::CreateImplicit(Context, entry.ExtraData, (unsigned *)entry.ExtraDataVects.begin(), (unsigned)entry.ExtraDataVects.size()));
+            break;
+          case Sema::RenesasCCRLPragmaType::CCRLBrkInterrupt:
+            // Silently drop __far or #pragma __far
+            dropFarFromFunctionDecl(Context, NewFD);
+            NewFD->addAttr(
+                RL78BRKInterruptAttr::CreateImplicit(Context, entry.ExtraData));
+            break;
+          case Sema::RenesasCCRLPragmaType::CCRLInline:
+            NewFD->addAttr(AlwaysInlineAttr::CreateImplicit(Context));
+            break;
+          case Sema::RenesasCCRLPragmaType::CCRLNoInline:
+            NewFD->addAttr(NoInlineAttr::CreateImplicit(Context));
+            break;
+          case Sema::RenesasCCRLPragmaType::CCRLInlineASM:
+            NewFD->addAttr(RL78InlineASMAttr::CreateImplicit(Context));
+            // Mark as naked, so we don't generate code that adjusts the stack, saves parameters, etc.
+            NewFD->addAttr(NakedAttr::CreateImplicit(Context));
+            break;
+          case Sema::RenesasCCRLPragmaType::CCRLCallt:
+            // Silently drop __far or #pragma __far
+            dropFarFromFunctionDecl(Context, NewFD);
+            if (NewFD->isInlineSpecified())
+              Diag(NewFD->getLocation(),
+                   diag::err_attributes_are_not_compatible)
+                  << "callt"
+                  << "inline";
+            else
+              NewFD->addAttr(RL78CalltAttr::CreateImplicit(Context));
+            break;
+          case Sema::RenesasCCRLPragmaType::CCRLNear:
+            NewFD->addAttr(RL78NearAttr::CreateImplicit(Context));
+            break;
+          case Sema::RenesasCCRLPragmaType::CCRLFar:
+            // Only add far if no __callt/brk_interrupt/interrupt was used so
+            // far
+            if (!NewFD->hasAttr<RL78CalltAttr>() &&
+                !NewFD->hasAttr<RL78InterruptAttr>() &&
+                !NewFD->hasAttr<RL78BRKInterruptAttr>()) {
+              const FunctionProtoType *FPT =
+                  NewFD->getType()->castAs<FunctionProtoType>();
+              FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
+              EPI.ExtInfo = EPI.ExtInfo.withFar(true);
+              NewFD->setType(Context.getFunctionType(
+                  FPT->getReturnType(), FPT->getParamTypes(), EPI));
+            }
+            break;
+          case Sema::RenesasCCRLPragmaType::CCRLAddress:
+                 Diag(NewFD->getLocation(), diag::err_attribute_wrong_decl_type_str)
+                  << "address" << "global variables";
+            break;
+          case Sema::RenesasCCRLPragmaType::CCRLSaddr:
+            // If __saddr is specified for a function, a compilation error will
+            // occur.
+            Diag(NewFD->getLocation(), diag::err_rl78_saddr_not_applicable);
+            break;
+          default:
+            break;
+          }
+          RenesasCCRLPragmaEntries.erase(&entry);
+          break;
+        }
+    }
+	
+	//Restriction: This If __inline, __callt or another #pragma is specified, a compilation error will occur.
+	if ((NewFD->hasAttr<RL78InterruptAttr>() ||	NewFD->hasAttr<RL78BRKInterruptAttr>()) && 
+		(NewFD->hasAttr<RL78InlineASMAttr>() || NewFD->hasAttr<RL78CalltAttr>() ||
+			NewFD->hasAttr<AlwaysInlineAttr>() || NewFD->isInlined())) {
+
+		Diag(NewFD->getLocation(), diag::err_expected) << "only attribute or pragma interrupt. Incompatible pragma or interrupt combination.";
+	}  
+  }
   return NewFD;
 }
 
@@ -13653,6 +14027,18 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
       }
   }
 
+// 2023/03/12 KS Added for RL78
+  // CCRL specification:
+  // If #pragma address is specified for a variable that is not a
+  // const-qualified variable and is declared with an initial value,
+  // an error will occur
+  if (var->hasAttr<RL78AddressAttr>() && !var->getType().isConstQualified() &&
+      var->hasInit()) {
+
+    Diag(var->getLocation(), diag::err_expected)
+        << "a const qualified variable or a non-const qualified variable "
+           "without initial value.";
+  }
 
   QualType type = var->getType();
 
@@ -14307,6 +14693,10 @@ Decl *Sema::ActOnParamDeclarator(Scope *S, Declarator &D) {
   if (getLangOpts().OpenCL)
     deduceOpenCLAddressSpace(New);
 
+// 2023/03/12 KS Added for RL78
+  if(getLangOpts().RenesasRL78)
+    handleRL78AddressSpace(New, true);
+
   return New;
 }
 
@@ -14438,6 +14828,11 @@ ParmVarDecl *Sema::CheckParameter(DeclContext *DC, SourceLocation StartLoc,
   // Since all parameters have automatic store duration, they can not have
   // an address space.
   if (T.getAddressSpace() != LangAS::Default &&
+// 2023/03/12 KS Added for RL78
+      !getLangOpts().RenesasRL78 &&
+      // Allow address spaces for function parameters, since they decay to
+      // pointers.
+      !T->isFunctionType() && 
       // OpenCL allows function arguments declared to be an array of a type
       // to be qualified with an address space.
       !(getLangOpts().OpenCL &&
@@ -17558,6 +17953,39 @@ FieldDecl *Sema::CheckFieldDecl(DeclarationName Name, QualType T,
     if (!BitWidth) {
       InvalidDecl = true;
       BitWidth = nullptr;
+// 2023/03/12 KS Added for RL78
+      // ZeroWidth = false;
+    } else {
+      DeclSpec &DS = D->getMutableDeclSpec();
+      if (LangOpts.UnsignedBitfields && !LangOpts.CPlusPlus &&
+          (DS.getTypeSpecSign() == TypeSpecifierSign::Unspecified)) {
+        bool changeType = true;
+        // Clang Can't handle qualifiers on typedef names yet
+        // so we need to do an extra check.
+        if (DS.getTypeSpecType() == TST_typename) {
+          // TODO
+          // T = GetTypeFromParser(DS.getRepAsType()).getCanonicalType();
+          // if (T.getTypeSpecSign() != TypeSpecifierSign::Unspecified)
+            changeType = false;
+        }
+        if (changeType) {
+          // The other types allowed in case of bitfields (_Bool, wchar* and
+          // enums) cannot be signed or unsigned.
+          if (T == Context.IntTy)
+            T = Context.UnsignedIntTy;
+          else if (T == Context.ShortTy)
+            T = Context.UnsignedShortTy;
+          else if (T == Context.LongTy)
+            T = Context.UnsignedLongTy;
+          else if (T == Context.LongLongTy)
+            T = Context.UnsignedLongLongTy;
+          else if (T == Context.CharTy)
+            // This overrides LangOpts.CharIsSigned.
+            T = Context.UnsignedCharTy;
+          else if (T == Context.Int128Ty)
+            T = Context.UnsignedInt128Ty;
+        }
+      }
     }
   }
 

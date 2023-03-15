@@ -1425,6 +1425,12 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
   if (LateParsedAttrs)
     ParseLexedAttributeList(*LateParsedAttrs, Res, false, true);
 
+// 2023/03/12 KS Added for RL78
+  const llvm::Triple &TheTriple = Actions.Context.getTargetInfo().getTriple();
+  if(TheTriple.isRL78() && Res->getAttr<RL78InlineASMAttr>()) {
+    return ParseInlineASMFunctionStatementBody(Res, BodyScope);
+  }
+
   return ParseFunctionStatementBody(Res, BodyScope);
 }
 

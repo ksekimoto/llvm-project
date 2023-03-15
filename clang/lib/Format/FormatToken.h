@@ -627,6 +627,9 @@ public:
     case tok::tilde:
     case tok::kw_sizeof:
     case tok::kw_alignof:
+// 2023/03/12 KS Added for RL78
+    case tok::kw___sectop:
+    case tok::kw___secend:
       return true;
     default:
       return false;
@@ -660,6 +663,9 @@ public:
     case tok::kw___attribute:
     case tok::kw___underlying_type:
     case tok::kw_requires:
+// 2023/03/12 KS Added for RL78
+    case tok::kw___sectop:
+    case tok::kw___secend:
       return true;
     default:
       return false;

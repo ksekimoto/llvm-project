@@ -4250,6 +4250,8 @@ public:
   llvm::Value *EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
                                           const CallExpr *E);
   llvm::Value *EmitHexagonBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
+// 2023/03/12 KS Added for RL78
+  llvm::Value *EmitRL78BuiltinExpr(unsigned BuiltinID, const CallExpr *E);
   llvm::Value *EmitRISCVBuiltinExpr(unsigned BuiltinID, const CallExpr *E,
                                     ReturnValueSlot ReturnValue);
   bool ProcessOrderScopeAMDGCN(llvm::Value *Order, llvm::Value *Scope,

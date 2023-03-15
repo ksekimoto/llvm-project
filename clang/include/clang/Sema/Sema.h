@@ -691,6 +691,30 @@ public:
   PragmaStack<StringLiteral *> ConstSegStack;
   PragmaStack<StringLiteral *> CodeSegStack;
 
+// 2023/03/12 KS Added for RL78
+  enum class RenesasCCRLPragmaType {
+    CCRLInterrupt,
+    CCRLBrkInterrupt,
+    CCRLInline,
+    CCRLNoInline,
+    CCRLInlineASM,
+    CCRLAddress,
+    CCRLSaddr,
+    CCRLCallt,
+    CCRLNear,
+    CCRLFar
+  };
+
+  struct RenesasCCRLPragmaEntry {
+    std::string Identifier;
+    SourceLocation Loc;
+    RenesasCCRLPragmaType PragmaType;
+    unsigned ExtraData;
+	SmallVector<unsigned, 4> ExtraDataVects;
+  };
+
+  SmallVector<RenesasCCRLPragmaEntry, 4> RenesasCCRLPragmaEntries;
+
   // This stack tracks the current state of Sema.CurFPFeatures.
   PragmaStack<FPOptionsOverride> FpPragmaStack;
   FPOptionsOverride CurFPFeatureOverrides() {
@@ -1907,6 +1931,9 @@ public:
     /// the translation unit.
     Private
   };
+
+// 2023/03/12 KS Added for RL78
+  void ActOnCCRLPragmaEntry(const SmallVectorImpl<RenesasCCRLPragmaEntry> &PragmaEntries, SourceLocation Loc);
 
   void ActOnStartOfTranslationUnit();
   void ActOnEndOfTranslationUnit();
@@ -10091,6 +10118,8 @@ public:
   bool inferObjCARCLifetime(ValueDecl *decl);
 
   void deduceOpenCLAddressSpace(ValueDecl *decl);
+// 2023/03/12 KS Added for RL78
+  void handleRL78AddressSpace(ValueDecl *decl, bool IsParameter);
 
   ExprResult
   HandleExprPropertyRefExpr(const ObjCObjectPointerType *OPT,

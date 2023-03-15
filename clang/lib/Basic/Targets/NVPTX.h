@@ -42,7 +42,10 @@ static const unsigned NVPTXAddrSpaceMap[] = {
     0, // sycl_private
     0, // ptr32_sptr
     0, // ptr32_uptr
-    0  // ptr64
+    0, // ptr64
+// 2023/03/12 KS Added for RL78
+    0, // __near
+    0, // __far
 };
 
 /// The DWARF address class. Taken from

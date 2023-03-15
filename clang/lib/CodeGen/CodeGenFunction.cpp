@@ -110,6 +110,27 @@ clang::ToConstrainedExceptMD(LangOptions::FPExceptionModeKind Kind) {
   }
 }
 
+// 2023/03/12 KS Added for RL78
+#if 0
+void CodeGenFunction::SetFPModel() {
+  auto fpRoundingMode = ToConstrainedRoundingMD(
+                          getLangOpts().getFPRoundingMode());
+  auto fpExceptionBehavior = ToConstrainedExceptMD(
+                               getLangOpts().getFPExceptionMode());
+  //TODO: find a better solution
+  fpExceptionBehavior = llvm::fp::ebIgnore;
+  if (fpExceptionBehavior == llvm::fp::ebIgnore &&
+      fpRoundingMode == llvm::fp::rmToNearest)
+    // Constrained intrinsics are not used.
+    ;
+  else {
+    Builder.setIsFPConstrained(true);
+    Builder.setDefaultConstrainedRounding(fpRoundingMode);
+    Builder.setDefaultConstrainedExcept(fpExceptionBehavior);
+  }
+}
+#endif
+
 void CodeGenFunction::SetFastMathFlags(FPOptions FPFeatures) {
   llvm::FastMathFlags FMF;
   FMF.setAllowReassoc(FPFeatures.getAllowFPReassociate());

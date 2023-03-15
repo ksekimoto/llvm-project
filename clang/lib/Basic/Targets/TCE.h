@@ -50,6 +50,9 @@ static const unsigned TCEOpenCLAddrSpaceMap[] = {
     0, // ptr32_sptr
     0, // ptr32_uptr
     0, // ptr64
+// 2023/03/12 KS Added for RL78
+    0, // __near
+    0  // __far
 };
 
 class LLVM_LIBRARY_VISIBILITY TCETargetInfo : public TargetInfo {

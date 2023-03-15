@@ -4384,8 +4384,55 @@ template<typename Derived>
 void TreeTransform<Derived>::InventTemplateArgumentLoc(
                                          const TemplateArgument &Arg,
                                          TemplateArgumentLoc &Output) {
-  Output = getSema().getTrivialTemplateArgumentLoc(
-      Arg, QualType(), getDerived().getBaseLocation());
+// 2023/03/12 KS Added for RL78
+//   Output = getSema().getTrivialTemplateArgumentLoc(
+//       Arg, QualType(), getDerived().getBaseLocation());
+  SourceLocation Loc = getDerived().getBaseLocation();
+  switch (Arg.getKind()) {
+  case TemplateArgument::Null:
+    llvm_unreachable("null template argument in TreeTransform");
+    break;
+
+  case TemplateArgument::Type:
+    Output = TemplateArgumentLoc(Arg,
+               SemaRef.Context.getTrivialTypeSourceInfo(Arg.getAsType(), Loc));
+
+    break;
+
+  case TemplateArgument::Template:
+  case TemplateArgument::TemplateExpansion: {
+    NestedNameSpecifierLocBuilder Builder;
+    TemplateName Template = Arg.getAsTemplateOrTemplatePattern();
+    if (DependentTemplateName *DTN = Template.getAsDependentTemplateName())
+      Builder.MakeTrivial(SemaRef.Context, DTN->getQualifier(), Loc);
+    else if (QualifiedTemplateName *QTN = Template.getAsQualifiedTemplateName())
+      Builder.MakeTrivial(SemaRef.Context, QTN->getQualifier(), Loc);
+
+    // 2023/03/12 KS Added for RL78
+#if 0
+    if (Arg.getKind() == TemplateArgument::Template)
+      Output = TemplateArgumentLoc(Arg,
+                                   Builder.getWithLocInContext(SemaRef.Context),
+                                   Loc);
+    else
+      Output = TemplateArgumentLoc(Arg,
+                                   Builder.getWithLocInContext(SemaRef.Context),
+                                   Loc, Loc);
+#endif
+    break;
+  }
+
+  case TemplateArgument::Expression:
+    Output = TemplateArgumentLoc(Arg, Arg.getAsExpr());
+    break;
+
+  case TemplateArgument::Declaration:
+  case TemplateArgument::Integral:
+  case TemplateArgument::Pack:
+  case TemplateArgument::NullPtr:
+    Output = TemplateArgumentLoc(Arg, TemplateArgumentLocInfo());
+    break;
+  }
 }
 
 template <typename Derived>
@@ -13127,6 +13174,20 @@ TreeTransform<Derived>::TransformLambdaExpr(LambdaExpr *E) {
       NewTrailingRequiresClause.get());
 
   LSI->CallOperator = NewCallOperator;
+
+// 2023/03/12 KS Added for RL78
+  for (unsigned I = 0, NumParams = NewCallOperator->getNumParams();
+       I != NumParams; ++I) {
+    auto *P = NewCallOperator->getParamDecl(I);
+    if (P->hasUninstantiatedDefaultArg()) {
+      EnterExpressionEvaluationContext Eval(
+          getSema(),
+          Sema::ExpressionEvaluationContext::PotentiallyEvaluatedIfUsed, P);
+      ExprResult R = getDerived().TransformExpr(
+          E->getCallOperator()->getParamDecl(I)->getDefaultArg());
+      P->setDefaultArg(R.get());
+    }
+  }
 
   getDerived().transformAttrs(E->getCallOperator(), NewCallOperator);
   getDerived().transformedLocalDecl(E->getCallOperator(), {NewCallOperator});

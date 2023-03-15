@@ -2709,6 +2709,13 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
   llvm::InlineAsm *IA = llvm::InlineAsm::get(
       FTy, AsmString, Constraints, HasSideEffect,
       /* IsAlignStack */ false, AsmDialect, HasUnwindClobber);
+
+// 2023/03/12 KS Added for RL78
+  // In case of RL78 we use AD_ATT regardless 
+  // of what kind of ASM statment we have (GCC or MS).
+  if(getContext().getTargetInfo().getTriple().isRL78())
+    AsmDialect = llvm::InlineAsm::AD_ATT;
+
   std::vector<llvm::Value*> RegResults;
   if (IsGCCAsmGoto) {
     llvm::CallBrInst *Result =

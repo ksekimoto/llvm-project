@@ -4206,7 +4206,9 @@ LexNextToken:
 
   case '@':
     // Objective C support.
-    if (CurPtr[-1] == '@' && LangOpts.ObjC)
+    // 2023/03/12 KS Added for RL78
+    // if (CurPtr[-1] == '@' && LangOpts.ObjC)
+    if (CurPtr[-1] == '@' && LangOpts.ObjC || LangOpts.RenesasRL78)
       Kind = tok::at;
     else
       Kind = tok::unknown;
