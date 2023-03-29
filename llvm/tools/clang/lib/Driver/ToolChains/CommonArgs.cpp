@@ -348,7 +348,7 @@ std::string tools::getCPUName(const ArgList &Args, const llvm::Triple &T,
   case llvm::Triple::wasm32:
   case llvm::Triple::wasm64:
     return getWebAssemblyTargetCPU(Args);
-  case llvm::Triple::RL78:
+  case llvm::Triple::rl78:
     return getRL78TargetCPU(Args);
   }
 }

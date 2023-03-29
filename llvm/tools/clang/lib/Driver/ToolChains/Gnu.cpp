@@ -2651,7 +2651,7 @@ bool Generic_GCC::IsIntegratedAssemblerDefault() const {
   case llvm::Triple::mips:
   case llvm::Triple::mipsel:
 //TODO: do we need this?
-  case llvm::Triple::RL78:
+  case llvm::Triple::rl78:
     return true;
   case llvm::Triple::mips64:
   case llvm::Triple::mips64el:

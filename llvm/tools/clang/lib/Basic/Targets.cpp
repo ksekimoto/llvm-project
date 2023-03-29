@@ -123,7 +123,7 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
   case llvm::Triple::lanai:
     return new LanaiTargetInfo(Triple, Opts);
 
-  case llvm::Triple::RL78:
+  case llvm::Triple::rl78:
 	  return new RL78TargetInfo(Triple, Opts);
 
   case llvm::Triple::aarch64_32:

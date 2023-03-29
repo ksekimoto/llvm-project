@@ -10087,7 +10087,7 @@ const TargetCodeGenInfo &CodeGenModule::getTargetCodeGenInfo() {
   default:
     return SetCGInfo(new DefaultTargetCodeGenInfo(Types));
   
-  case llvm::Triple::RL78:
+  case llvm::Triple::rl78:
     return SetCGInfo(new RL78TargetCodeGenInfo(Types));
   case llvm::Triple::le32:
     return SetCGInfo(new PNaClTargetCodeGenInfo(Types));

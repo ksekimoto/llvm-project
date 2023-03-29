@@ -4409,7 +4409,7 @@ static Value *EmitTargetArchBuiltinExpr(CodeGenFunction *CGF,
     return CGF->EmitWebAssemblyBuiltinExpr(BuiltinID, E);
   case llvm::Triple::hexagon:
     return CGF->EmitHexagonBuiltinExpr(BuiltinID, E);
-  case llvm::Triple::RL78:
+  case llvm::Triple::rl78:
       return CGF->EmitRL78BuiltinExpr(BuiltinID, E);
   default:
     return nullptr;

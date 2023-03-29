@@ -5964,7 +5964,7 @@ static void handleRL78InterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL,
 static void handleInterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // Dispatch the interrupt attribute based on the current target.
   switch (S.Context.getTargetInfo().getTriple().getArch()) {
-  case llvm::Triple::RL78:
+  case llvm::Triple::rl78:
     handleRL78InterruptAttr(S, D, AL);
     break;
   case llvm::Triple::msp430:

@@ -4934,7 +4934,7 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
       case llvm::Triple::riscv32:
       case llvm::Triple::riscv64:
         TC = std::make_unique<toolchains::RISCVToolChain>(*this, Target, Args);
-	  case llvm::Triple::RL78:
+	  case llvm::Triple::rl78:
         TC = std::make_unique<toolchains::RL78ToolChain>(*this, Target, Args);
         break;
       default:
