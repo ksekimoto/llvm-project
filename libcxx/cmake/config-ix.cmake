@@ -72,7 +72,7 @@ int main() { return 0; }
   cmake_pop_check_state()
 endif()
 
-if(NOT WIN32 OR MINGW)
+if(NOT WIN32 OR NOT MINGW)
   include(CheckLibcxxAtomic)
 endif()
 
