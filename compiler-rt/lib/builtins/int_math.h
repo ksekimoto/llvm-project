@@ -92,7 +92,7 @@
 #if defined(_MSC_VER) && !defined(__clang__)
 #define crt_scalbnl(x, y) scalbnl((x), (y))
 #elif defined(__RL78__)
-#define crt_scalbnl(x, y) scalblnl((x), (y))
+#define crt_scalbnl(x, y) __builtin_scalblnl((x), (y))
 #else
 #define crt_scalbnl(x, y) __builtin_scalbnl((x), (y))
 #endif

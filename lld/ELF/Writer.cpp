@@ -843,6 +843,7 @@ static bool isRelroSection(const OutputSection *sec) {
 // * It is easy to check if a give branch was taken.
 // * It is easy two see how similar two ranks are (see getRankProximity).
 enum RankFlags {
+#if 0
   RF_NOT_ADDR_SET = 1 << 27,
   RF_NOT_ALLOC = 1 << 26,
   RF_PARTITION = 1 << 18, // Partition number (8 bits)
@@ -864,6 +865,30 @@ enum RankFlags {
   RF_PPC_BRANCH_LT = 1 << 2,
   RF_MIPS_GPREL = 1 << 1,
   RF_MIPS_NOT_GOT = 1 << 0
+#endif
+  RF_NOT_ADDR_SET = 1 << 29,
+  RF_NOT_ALLOC = 1 << 28,
+  RF_PARTITION = 1 << 20, // Partition number (8 bits)
+  RF_NOT_PART_EHDR = 1 << 19,
+  RF_NOT_PART_PHDR = 1 << 18,
+  RF_NOT_INTERP = 1 << 17,
+  RF_NOT_NOTE = 1 << 16,
+  RF_RL78_FAR = 1 << 15,
+  RF_WRITE = 1 << 14,
+  RF_EXEC_WRITE = 1 << 13,
+  RF_EXEC = 1 << 12,
+  RF_RODATA = 1 << 11,
+  RF_NOT_RELRO = 1 << 10,
+  RF_NOT_TLS = 1 << 9,
+  RF_BSS = 1 << 8,
+  RF_PPC_NOT_TOCBSS = 1 << 7,
+  RF_PPC_TOCL = 1 << 6,
+  RF_PPC_TOC = 1 << 5,
+  RF_PPC_GOT = 1 << 4,
+  RF_PPC_BRANCH_LT = 1 << 3,
+  RF_MIPS_GPREL = 1 << 2,
+  RF_MIPS_NOT_GOT = 1 << 1,
+  RF_RL78_NAMED_SECTION = 1 <<0
 };
 
 static unsigned getSectionRank(const OutputSection &osec) {
@@ -987,6 +1012,17 @@ static unsigned getSectionRank(const OutputSection &osec) {
 
     if (osec.name != ".got")
       rank |= RF_MIPS_NOT_GOT;
+  }
+
+  if (config->emachine == EM_RL78) {
+    // We want to differentiate between far and near sections, so we allocate
+    // the "orphan" <sec>_AT<address> sections near their <sec> counter-parts.
+    if (osec.name.startswith(".bssf") || 
+        osec.name.startswith(".frodata") || osec.name.startswith(".constf"))
+      rank |= RF_RL78_FAR;
+    if (osec.name.startswith(".bss") || osec.name.startswith(".rodata") ||
+        osec.name.startswith(".frodata") || osec.name.startswith(".const"))
+      rank |= RF_RL78_NAMED_SECTION;
   }
 
   return rank;
@@ -2243,9 +2279,13 @@ template <class ELFT> void Writer<ELFT>::addStartEndSymbols() {
 // __stop_<secname> symbols. They are at beginning and end of the section,
 // respectively. This is not requested by the ELF standard, but GNU ld and
 // gold provide the feature, and used by many programs.
+// If we are linking for the RL78 target, we always want to define the section start/stop
+// symbols.
 template <class ELFT>
 void Writer<ELFT>::addStartStopSymbols(OutputSection &osec) {
   StringRef s = osec.name;
+  if (!isValidCIdentifier(s) && config->emachine != llvm::ELF::EM_RL78)
+    return;
   if (!isValidCIdentifier(s))
     return;
   addOptionalRegular(saver().save("__start_" + s), &osec, 0,

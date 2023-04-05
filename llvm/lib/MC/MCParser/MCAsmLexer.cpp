@@ -131,6 +131,7 @@ void AsmToken::dump(raw_ostream &OS) const {
   case AsmToken::SizeOf:             OS << "SizeOf"; break;
   case AsmToken::DataPos:            OS << "DataPos"; break;
   case AsmToken::BitPos:             OS << "BitPos"; break;
+  case AsmToken::BitPosition:        OS << "BitPosition"; break;
   }
 
   // Print the token string.

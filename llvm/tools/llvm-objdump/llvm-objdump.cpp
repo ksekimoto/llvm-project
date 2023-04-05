@@ -1445,7 +1445,7 @@ static void disassembleObject(const Target *TheTarget, ObjectFile &Obj,
 #if 0
     if (Obj->isELF() &&
         (Obj->getArch() == Triple::amdgcn ||
-        (Obj->getArch() == Triple::RL78 && !Obj->isRelocatableObject()))) {
+        (Obj->getArch() == Triple::rl78 && !Obj->isRelocatableObject()))) {
       // AMDGPU/RL78 disassembler use symbolizer for printing labels
       addSymbolizer(Ctx, TheTarget, TripleName, DisAsm, SectionAddr, Bytes,
                     Symbols, SynthesizedLabelNames);

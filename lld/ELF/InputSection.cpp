@@ -1080,7 +1080,36 @@ void InputSectionBase::relocateAlloc(uint8_t *buf, uint8_t *bufEnd) {
       target.relocate(bufLoc, rel, targetVA);
       break;
     default:
-      target.relocate(bufLoc, rel, targetVA);
+      if (config->emachine == EM_RL78) {
+        if (rel.sym->isInPlt()) {
+          target.relocate(bufLoc, rel, rel.sym->getPltVA());
+        } else {
+          switch (rel.type) {
+          case R_RL78_ABS8S_PCREL:
+          case R_RL78_ABS16S_PCREL:
+            target.relocate(bufLoc, rel, addrLoc);
+            break;
+          case R_RL78_OPsctsize: {
+            auto symbol = lld::toString(*rel.sym);
+            if (Defined *d = dyn_cast<Defined>(rel.sym)) {
+              if (InputSection *isec = cast_or_null<InputSection>(d->section)) {
+                target.relocate(bufLoc, rel, isec->getOutputSection()->size);
+              } else {
+                errorOrWarn(getErrorLocation(bufLoc) + " symbol " + symbol +
+                            " is not a section symbol!");
+              }
+            } else {
+              errorOrWarn(getErrorLocation(bufLoc) + " symbol " + symbol +
+                          " is not defined!");
+            }
+          }
+          break;
+          default:
+            target.relocate(bufLoc, rel, targetVA);
+          }
+        }
+      } else
+        target.relocate(bufLoc, rel, targetVA);
       break;
     }
   }

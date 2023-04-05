@@ -36,6 +36,7 @@
 #include <limits>
 #include <string>
 #include <vector>
+#include <set>
 
 using namespace llvm;
 using namespace llvm::ELF;
@@ -824,7 +825,8 @@ void LinkerScript::addOrphanSections() {
   StringMap<TinyPtrVector<OutputSection *>> map;
   SmallVector<OutputDesc *, 0> v;
 
-  auto add = [&](InputSectionBase *s) {
+  std::function<void(InputSectionBase *)> add;
+  add = [&](InputSectionBase *s) {
     if (s->isLive() && !s->parent) {
       orphanSections.push_back(s);
 
@@ -834,12 +836,72 @@ void LinkerScript::addOrphanSections() {
       } else if (OutputSection *sec = findByName(sectionCommands, name)) {
         sec->recordSection(s);
       } else {
-        if (OutputDesc *osd = addInputSec(map, s, name))
-          v.push_back(osd);
+        // if (OutputDesc *osd = addInputSec(map, s, name))
+        //   v.push_back(osd);
+        // assert(isa<MergeInputSection>(s) ||
+        //        s->getOutputSection()->sectionIndex == UINT32_MAX);
+        if (OutputDesc *os = addInputSec(map, s, name)) {
+          if ((config->emachine == EM_RL78) && name.contains("_AT") && (s->flags & SHF_RENESAS_ABS)) {
+            size_t nameOffset = 0;
+            if (name.startswith(".bss_AT")) {
+              nameOffset = std::string(".bss_AT").size();
+              os->osec.memoryRegionName = "RAM";
+            } else if (name.startswith(".bssf_AT")) {
+              nameOffset = std::string(".bssf_AT").size();
+              os->osec.memoryRegionName = "RAM";
+            } else if (name.startswith(".const_AT")) {
+              nameOffset = std::string(".const_AT").size();
+              os->osec.memoryRegionName = "ROM";
+            } else if (name.startswith(".constf_AT")) {
+              nameOffset = std::string(".constf_AT").size();
+              os->osec.memoryRegionName = "ROM";
+            } else {
+              // sections with CC-RL relocation attributes:
+              // AT/DATA_AT/BSS_AT/BIT_AT
+              nameOffset = name.find_last_of("_AT") + 1;
+              os->osec.memoryRegionName = "RAM";
+            }
+            if (nameOffset) {
+              uint64_t val;
+              Optional<uint64_t> val1;
+              if (!to_integer(name.substr(nameOffset), val, 16))
+                val1 = None;// TODO: should we output a warning?
+              else
+                val1 = val;
+              // When the address specified for a const variable that is
+              // explicitly or implicitly specified as near is not in the mirror
+              // source area, a linkage error will occur.
+              if (val1.hasValue() && name.startswith(".const_AT")) {
+                if (MemoryRegion *m = memoryRegions.lookup("MIRROR")) {
+                  uint64_t mirrorStart = (m->origin)().getValue() - 0xF0000;
+                  uint64_t mirrorEnd = mirrorStart + (m->length)().getValue();
+                  if ((mirrorStart > val1.getValue()) ||
+                      (mirrorEnd < val1.getValue()))
+                    error(name + " is outside of the MIRROR source area [0x" +
+                          Twine::utohexstr(mirrorStart).str() + ", 0x" +
+                          Twine::utohexstr(mirrorEnd).str() + "]");
+                } else {
+                  error("memory region 'MIRROR' not declared");
+                }
+              }
+              os->osec.addrExpr = [=] { return *val1; };
+              os->osec.lmaExpr = [=] { return *val1; };
+              
+              // We could modify the section Index so the section is not orphan
+              // anymore. os->sectionIndex--;
+            }
+          }
+          v.push_back(os);
+        }
         assert(isa<MergeInputSection>(s) ||
                s->getOutputSection()->sectionIndex == UINT32_MAX);
       }
     }
+
+    if (config->relocatable)
+      for (InputSectionBase *depSec : s->dependentSections)
+        if (depSec->flags & SHF_LINK_ORDER)
+          add(depSec);
   };
 
   // For further --emit-reloc handling code we need target output section
@@ -969,6 +1031,28 @@ void LinkerScript::assignOffsets(OutputSection *sec) {
   } else {
     if (ctx->memRegion)
       dot = ctx->memRegion->curPos;
+    // 2023/04/01 KS Added from RL78
+    //TODO: Specify alignement and NOBITS before this step. 
+    if (config->emachine == EM_RL78) {
+      if (sec->name == ".sbss" || sec->name == ".dataf" ||
+          sec->name == ".saddr" || sec->name == ".sdata" || sec->name == ".bssf")
+        sec->alignment = 2;
+
+      if (sec->name == ".sbss" || sec->name == ".bssf")
+        sec->type = SHT_NOBITS;
+
+      if (sec->name == ".text")
+        sec->alignment = 1;
+
+      if (sec->name == ".callt0")
+        sec->alignment = 2;
+    }
+
+    // 2023/04/01 KS Added from RL78
+    // Need to check if the following is correct or not
+    // if ((sec->flags & SHF_ALLOC) && sec->addrExpr)
+    //   setDot(sec->addrExpr, sec->location, false);
+
     if (sec->addrExpr)
       setDot(sec->addrExpr, sec->location, false);
 

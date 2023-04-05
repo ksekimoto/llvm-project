@@ -15,15 +15,17 @@
 
 namespace llvm {
 
-  class RL78TargetObjectFile : public TargetLoweringObjectFileELF {
+class MCContext;
+class TargetMachine;
 
-    void Initialize(MCContext &Ctx, const TargetMachine &TM) override;
+class RL78TargetObjectFile : public TargetLoweringObjectFileELF {
+public:
+  RL78TargetObjectFile() : TargetLoweringObjectFileELF() {}
 
-    MCSection *SelectSectionForGlobal(const GlobalObject *GO, SectionKind Kind,
-                                      const TargetMachine &TM) const override;
+  void Initialize(MCContext &Ctx, const TargetMachine &TM) override;
 
-    /// Describe a TLS variable address within debug info.
-    const MCExpr *getDebugThreadLocalSymbol(const MCSymbol *Sym) const override;
+  std::string getSectionPrefixForGlobal(SectionKind Kind,
+                                        const GlobalObject *GO) const override;
   };
 
 }  // end namespace llvm

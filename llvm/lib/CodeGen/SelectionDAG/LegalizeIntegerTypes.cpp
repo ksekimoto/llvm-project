@@ -4416,7 +4416,7 @@ void DAGTypeLegalizer::ExpandIntRes_XMULO(SDNode *N,
   }
 
   Type *RetTy = VT.getTypeForEVT(*DAG.getContext());
-  // RL78
+  // 2023/04/03 KS Added for RL78
   EVT PtrVT = TLI.getPointerTy(DAG.getDataLayout(), DAG.getDataLayout().getProgramAddressSpace());
   Type *PtrTy = PtrVT.getTypeForEVT(*DAG.getContext());
 

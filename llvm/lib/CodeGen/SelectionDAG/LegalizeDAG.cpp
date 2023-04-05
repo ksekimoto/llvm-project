@@ -2029,7 +2029,7 @@ SDValue SelectionDAGLegalize::ExpandLibCall(RTLIB::Libcall LC, SDNode *Node,
     Entry.IsZExt = !TLI.shouldSignExtendTypeInLibCall(ArgVT, isSigned);
     Args.push_back(Entry);
   }
-  // RL78
+  // 2023/04/03 KS Added for RL78
   SDValue Callee = DAG.getExternalSymbol(TLI.getLibcallName(LC),
                                          TLI.getPointerTy(DAG.getDataLayout(), DAG.getDataLayout().getProgramAddressSpace()));
 
@@ -2197,6 +2197,7 @@ SelectionDAGLegalize::ExpandDivRemLibCall(SDNode *Node,
   Entry.IsZExt = !isSigned;
   Args.push_back(Entry);
 
+  // 2023/04/03 KS Added for RL78
   SDValue Callee = DAG.getExternalSymbol(TLI.getLibcallName(LC),
                                          TLI.getPointerTy(DAG.getDataLayout(), DAG.getDataLayout().getProgramAddressSpace()));
 
@@ -2296,8 +2297,9 @@ SelectionDAGLegalize::ExpandSinCosLibCall(SDNode *Node,
   Entry.IsZExt = false;
   Args.push_back(Entry);
 
+  // 2023/04/03 KS Added for RL78
   SDValue Callee = DAG.getExternalSymbol(TLI.getLibcallName(LC),
-                                         TLI.getPointerTy(DAG.getDataLayout()));
+                                         TLI.getPointerTy(DAG.getDataLayout(), DAG.getDataLayout().getProgramAddressSpace()));
 
   SDLoc dl(Node);
   TargetLowering::CallLoweringInfo CLI(DAG);
@@ -3924,6 +3926,7 @@ void SelectionDAGLegalize::ConvertNodeToLibcall(SDNode *Node) {
     // FIXME: handle "fence singlethread" more efficiently.
     TargetLowering::ArgListTy Args;
 
+  // 2023/04/03 KS Added for RL78
     TargetLowering::CallLoweringInfo CLI(DAG);
     CLI.setDebugLoc(dl)
         .setChain(Node->getOperand(0))
@@ -3932,7 +3935,6 @@ void SelectionDAGLegalize::ConvertNodeToLibcall(SDNode *Node) {
             DAG.getExternalSymbol("__sync_synchronize",
                                   TLI.getPointerTy(DAG.getDataLayout(), DAG.getDataLayout().getProgramAddressSpace())),
             std::move(Args));
-
 
     std::pair<SDValue, SDValue> CallResult = TLI.LowerCallTo(CLI);
 
@@ -3983,13 +3985,14 @@ void SelectionDAGLegalize::ConvertNodeToLibcall(SDNode *Node) {
   }
   case ISD::TRAP: {
     // If this operation is not supported, lower it to 'abort()' call
+  // 2023/04/03 KS Added for RL78
     TargetLowering::ArgListTy Args;
     TargetLowering::CallLoweringInfo CLI(DAG);
     CLI.setDebugLoc(dl)
         .setChain(Node->getOperand(0))
         .setLibCallee(CallingConv::C, Type::getVoidTy(*DAG.getContext()),
                       DAG.getExternalSymbol(
-                          "abort", TLI.getPointerTy(DAG.getDataLayout())),
+                          "abort", TLI.getPointerTy(DAG.getDataLayout(), DAG.getDataLayout().getProgramAddressSpace())),
                       std::move(Args));
     std::pair<SDValue, SDValue> CallResult = TLI.LowerCallTo(CLI);
 

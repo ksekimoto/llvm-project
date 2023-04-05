@@ -35,12 +35,19 @@ RL78Subtarget &RL78Subtarget::initializeSubtargetDependencies(StringRef CPU,
 
   // Determine default and user specified characteristics.
   std::string CPUName = std::string(CPU);
-  if (CPUName.empty())
+  if (CPUName == "RL78_S3" || CPUName == "s3" || CPUName == "S3") {
+    coreType = RL78_S3;
     CPUName = "RL78_S3";
-  if (CPUName == "RL78_S1")
+  } else if ((CPUName == "RL78_S1") || (CPUName == "s1") || (CPUName == "S1")) {
     coreType = RL78_S1;
-  else if (CPUName == "RL78_S2")
+    CPUName = "RL78_S1";
+  } else if ((CPUName == "RL78_S2") || (CPUName == "s2") || (CPUName == "S2")) {
     coreType = RL78_S2;
+    CPUName = "RL78_S2";
+  } else {
+    coreType = RL78_S3;
+    CPUName = "RL78_S3";
+  }
 
   // Parse features string.
   ParseSubtargetFeatures(CPUName, CPU, FS);

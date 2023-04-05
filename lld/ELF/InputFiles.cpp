@@ -1538,6 +1538,8 @@ static uint16_t getBitcodeMachineKind(StringRef path, const Triple &t) {
     return t.isOSIAMCU() ? EM_IAMCU : EM_386;
   case Triple::x86_64:
     return EM_X86_64;
+  case Triple::rl78:
+    return EM_RL78;
   case Triple::xtensa:
     return EM_XTENSA;
   default:

@@ -1507,8 +1507,9 @@ public:
   SDValue getBitcast(EVT VT, SDValue V);
 
   /// Return an AddrSpaceCastSDNode.
+  // 2023/04/03 KS Added for RL78
   SDValue getAddrSpaceCast(const SDLoc &dl, EVT VT, SDValue Ptr, unsigned SrcAS,
-                           unsigned DestAS);
+                           unsigned DestAS, bool SrcIsProgAS);
 
   /// Return a freeze using the SDLoc of the value operand.
   SDValue getFreeze(SDValue V);

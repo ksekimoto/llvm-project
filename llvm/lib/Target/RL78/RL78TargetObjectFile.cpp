@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "RL78TargetObjectFile.h"
+#include "RL78.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Mangler.h"
 #include "llvm/MC/MCContext.h"
@@ -15,44 +16,49 @@
 
 using namespace llvm;
 
-void
-RL78TargetObjectFile::
-Initialize(MCContext &Ctx, const TargetMachine &TM) {
+void RL78TargetObjectFile::Initialize(MCContext &Ctx,
+                                         const TargetMachine &TM) {
   TargetLoweringObjectFileELF::Initialize(Ctx, TM);
+  InitializeELF(TM.Options.UseInitArray);
 }
 
-MCSection *RL78TargetObjectFile::SelectSectionForGlobal(
-    const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
-  // Here override ReadOnlySection to DataRelROSection for PPC64 SVR4 ABI
-  // when we have a constant that contains global relocations.  This is
-  // necessary because of this ABI's handling of pointers to functions in
-  // a shared library.  The address of a function is actually the address
-  // of a function descriptor, which resides in the .opd section.  Generated
-  // code uses the descriptor directly rather than going via the GOT as some
-  // other ABIs do, which means that initialized function pointers must
-  // reference the descriptor.  The linker must convert copy relocs of
-  // pointers to functions in shared libraries into dynamic relocations,
-  // because of an ordering problem with initialization of copy relocs and
-  // PLT entries.  The dynamic relocation will be initialized by the dynamic
-  // linker, so we must use DataRelROSection instead of ReadOnlySection.
-  // For more information, see the description of ELIMINATE_COPY_RELOCS in
-  // GNU ld.
-  if (Kind.isReadOnly()) {
-    const auto *GVar = dyn_cast<GlobalVariable>(GO);
-
-    if (GVar && GVar->isConstant() &&
-        GVar->getInitializer()->needsDynamicRelocation())
-      Kind = SectionKind::getReadOnlyWithRel();
+std::string RL78TargetObjectFile::getSectionPrefixForGlobal(
+    SectionKind Kind, const GlobalObject *GO) const {
+  bool isFar = false;
+  bool useRenesasNaming = false;
+  bool isSaddr = false;
+  if (GO) {
+    const GlobalVariable *GV = dyn_cast<GlobalVariable>(GO);
+    const Function *GF = dyn_cast<Function>(GO);
+    if (GV) {
+      useRenesasNaming = GV->getAttributes().hasAttribute("use-renesas-naming");
+      isSaddr = GV->getAttributes().hasAttribute("saddr");
+      isFar = GV->getAddressSpace() == RL78AS::Far;
+    } else if (GF) {
+      isFar = GF->getAddressSpace() == RL78AS::Far;
+    }
   }
 
-  return TargetLoweringObjectFileELF::SelectSectionForGlobal(GO, Kind, TM);
+  if (Kind.isText())
+    return isFar ? ".textf" : ".text";
+  if (Kind.isReadOnly()) {
+    if (useRenesasNaming) {
+      return isFar ? ".constf" : ".const";
+    } else {
+      return isFar ? ".frodata" : ".rodata";
+    }
+  }
+
+  if (isSaddr) {
+    return Kind.isData() ? ".sdata" : ".sbss";
+  }
+
+  if (Kind.isBSS()) {
+    return isFar ? ".bssf" : ".bss";
 }
 
-const MCExpr *RL78TargetObjectFile::
-getDebugThreadLocalSymbol(const MCSymbol *Sym) const {
-  const MCExpr *Expr =
-    MCSymbolRefExpr::create(Sym, MCSymbolRefExpr::VK_DTPREL, getContext());
-  return MCBinaryExpr::createAdd(Expr,
-                                 MCConstantExpr::create(0x8000, getContext()),
-                                 getContext());
+  if (Kind.isData())
+    return isFar ? ".dataf" : ".data";
+  assert(Kind.isReadOnlyWithRel() && "Unknown section kind");
+  return ".data.rel.ro";
 }

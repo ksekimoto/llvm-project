@@ -30,8 +30,8 @@ TEST(JSONTest, Types) {
   EXPECT_EQ(R"({"x":10,"y":20})", s(Object{{"x", 10}, {"y", 20}}));
 
 #ifdef NDEBUG
-  EXPECT_EQ(R"("��")", s("\xC0\x80"));
-  EXPECT_EQ(R"({"��":0})", s(Object{{"\xC0\x80", 0}}));
+  EXPECT_EQ(R"("??")", s("\xC0\x80"));
+  EXPECT_EQ(R"({"??":0})", s(Object{{"\xC0\x80", 0}}));
 #else
   EXPECT_DEATH(s("\xC0\x80"), "Invalid UTF-8");
   EXPECT_DEATH(s(Object{{"\xC0\x80", 0}}), "Invalid UTF-8");
@@ -226,21 +226,21 @@ TEST(JSONTest, ParseErrors) {
 TEST(JSONTest, UTF8) {
   for (const char *Valid : {
            "this is ASCII text",
-           "thïs tëxt häs BMP chäräctërs",
-           "𐌶𐌰L𐌾𐍈 C𐍈𐌼𐌴𐍃",
+           "th�s t�xt h�s BMP ch�r�ct�rs",
+           "????L???? C????????",
        }) {
     EXPECT_TRUE(isUTF8(Valid)) << Valid;
     EXPECT_EQ(fixUTF8(Valid), Valid);
   }
   for (auto Invalid : std::vector<std::pair<const char *, const char *>>{
-           {"lone trailing \x81\x82 bytes", "lone trailing �� bytes"},
-           {"missing trailing \xD0 bytes", "missing trailing � bytes"},
-           {"truncated character \xD0", "truncated character �"},
+           {"lone trailing \x81\x82 bytes", "lone trailing ?? bytes"},
+           {"missing trailing \xD0 bytes", "missing trailing ? bytes"},
+           {"truncated character \xD0", "truncated character ?"},
            {"not \xC1\x80 the \xE0\x9f\xBF shortest \xF0\x83\x83\x83 encoding",
-            "not �� the ��� shortest ���� encoding"},
-           {"too \xF9\x80\x80\x80\x80 long", "too ����� long"},
+            "not ?? the ??? shortest ???? encoding"},
+           {"too \xF9\x80\x80\x80\x80 long", "too ????? long"},
            {"surrogate \xED\xA0\x80 invalid \xF4\x90\x80\x80",
-            "surrogate ��� invalid ����"}}) {
+            "surrogate ??? invalid ????"}}) {
     EXPECT_FALSE(isUTF8(Invalid.first)) << Invalid.first;
     EXPECT_EQ(fixUTF8(Invalid.first), Invalid.second);
   }

@@ -18,9 +18,10 @@
 #include "llvm/Support/Process.h"
 #include "llvm/Target/TargetMachine.h"
 
-#if !defined(_MSC_VER) && !defined(__MINGW32__)
+#if !defined(_MSC_VER) && !defined(__MINGW32__) && !defined(__MINGW64__)
 #include <unistd.h>
-#elif defined(_MSC_VER)
+// #elif defined(_MSC_VER)
+#else
 #include <fcntl.h>
 #include <io.h>
 #endif

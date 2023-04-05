@@ -1590,8 +1590,7 @@ bool RL78AsmParser::ParseDirectiveOrg() {
   std::string NewSectionName;
   MCSectionELF *CurrentSection =
       dyn_cast<MCSectionELF>(getStreamer().getCurrentSectionOnly());
-  // std::string SectionNamePrefix = CurrentSection->getSectionName();
-  std::string SectionNamePrefix = "";
+  std::string SectionNamePrefix = CurrentSection->getName().str();
 
   // If the section name already has the _AT<address> suffix, drop it
   SectionNamePrefix =
@@ -3426,7 +3425,7 @@ OperandMatchResultTy RL78AsmParser::tryParseRegister(unsigned &RegNo,
   StartLoc = Tok.getLoc();
   EndLoc = Tok.getEndLoc();
   RegNo = 0;
-  int64_t IntVal;
+  // int64_t IntVal;
   unsigned regKind = RL78Operand::rk_None;
   if (matchRegisterName(Tok, RegNo, regKind))
     return MatchOperand_NoMatch;

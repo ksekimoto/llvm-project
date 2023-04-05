@@ -396,7 +396,7 @@ def TargetMSP430 : TargetArch<["msp430"]>;
 def TargetM68k : TargetArch<["m68k"]>;
 def TargetRISCV : TargetArch<["riscv32", "riscv64"]>;
 def TargetX86 : TargetArch<["x86"]>;
-def TargetRL78 : TargetArch<["RL78"]>;
+def TargetRL78 : TargetArch<["rl78"]>;
 def TargetAnyX86 : TargetArch<["x86", "x86_64"]>;
 def TargetWebAssembly : TargetArch<["wasm32", "wasm64"]>;
 def TargetHasDLLImportExport : TargetSpec {

@@ -40,7 +40,7 @@ struct Section {
   uint32_t Index;
   std::string Segname;
   std::string Sectname;
-  // CanonicalName is a string formatted as “<Segname>,<Sectname>".
+  // CanonicalName is a string formatted as ?<Segname>,<Sectname>".
   std::string CanonicalName;
   uint64_t Addr = 0;
   uint64_t Size = 0;

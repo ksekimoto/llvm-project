@@ -365,7 +365,7 @@ static void getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case llvm::Triple::m68k:
     m68k::getM68kTargetFeatures(D, Triple, Args, Features);
     break;
-  case llvm::Triple::RL78:
+  case llvm::Triple::rl78:
     rl78::getRL78TargetFeatures(D, Args, Features);
     break;
   case llvm::Triple::msp430:
@@ -533,7 +533,7 @@ static bool useFramePointerForTargetByDefault(const ArgList &Args,
   case llvm::Triple::wasm32:
   case llvm::Triple::wasm64:
   case llvm::Triple::msp430:
-  case llvm::Triple::RL78:
+  case llvm::Triple::rl78:
     // XCore never wants frame pointers, regardless of OS.
     // WebAssembly never wants frame pointers.
     return false;
@@ -1542,7 +1542,7 @@ static bool isNoCommonDefault(const llvm::Triple &Triple) {
   case llvm::Triple::xcore:
   case llvm::Triple::wasm32:
   case llvm::Triple::wasm64:
-  case llvm::Triple::RL78:
+  case llvm::Triple::rl78:
     return true;
   }
 }
@@ -1866,7 +1866,7 @@ void Clang::RenderTargetOptions(const llvm::Triple &EffectiveTriple,
   case llvm::Triple::wasm64:
     AddWebAssemblyTargetArgs(Args, CmdArgs);
     break;
-  case llvm::Triple::RL78:
+  case llvm::Triple::rl78:
     AddRL78TargetArgs(Args, CmdArgs);
     break;
 
@@ -2460,8 +2460,8 @@ void Clang::AddRL78TargetArgs(const ArgList &Args,
   CmdArgs.push_back("-mllvm");
   CmdArgs.push_back("-addr-sink-using-gep=false");
 
-  CmdArgs.push_back("-mllvm");
-  CmdArgs.push_back("-consider-local-interval-cost=true");
+  // CmdArgs.push_back("-mllvm");
+  // CmdArgs.push_back("-consider-local-interval-cost=true");
 
   CmdArgs.push_back("-mllvm");
   CmdArgs.push_back("-disable-block-placement=true");
@@ -2496,8 +2496,8 @@ void Clang::AddRL78TargetArgs(const ArgList &Args,
   CmdArgs.push_back("-mllvm");
   CmdArgs.push_back("-no-phi-elim-live-out-early-exit=true");
 
-  CmdArgs.push_back("-mllvm");
-  CmdArgs.push_back("-simplifycfg-dup-ret=true");
+//   CmdArgs.push_back("-mllvm");
+//   CmdArgs.push_back("-simplifycfg-dup-ret=true");
 
   CmdArgs.push_back("-mllvm");
   CmdArgs.push_back("-speculate-one-expensive-inst=false");
@@ -8338,7 +8338,7 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
   case llvm::Triple::riscv64:
     AddRISCVTargetArgs(Args, CmdArgs);
     break;
-  case llvm::Triple::RL78: {
+  case llvm::Triple::rl78: {
     // Default include paths.
     CmdArgs.push_back("-I.");
     std::string FileName = Inputs[0].getFilename();

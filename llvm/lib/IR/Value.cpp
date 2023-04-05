@@ -503,11 +503,7 @@ void Value::doRAUW(Value *New, ReplaceMetadataUses ReplaceMetaUses) {
   // address space with prototypefunction pointers with address space.
   assert((New->getType() == getType() ||
           (New->getType()->getTypeID() == getType()->getTypeID() &&
-           New->getType()->getTypeID() == Type::PointerTyID &&
-           New->getType()->getPointerElementType()->getTypeID() ==
-               Type::FunctionTyID &&
-           New->getType()->getPointerElementType() ==
-               getType()->getPointerElementType())) &&
+           New->getType()->getTypeID() == Type::PointerTyID)) &&
          "replaceAllUses of value with new value of different type!");
 
   // Notify all ValueHandles (if present) that this value is going away.

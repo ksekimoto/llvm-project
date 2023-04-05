@@ -1578,11 +1578,9 @@ bool RL78TargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
   case Intrinsic::rl78_not1: {
 
     const Module &M = *I.getParent()->getParent()->getParent();
-    PointerType *PtrTy = cast<PointerType>(I.getArgOperand(0)->getType());
+    Type *PtrTy = I.getArgOperand(0)->getType();
     Info.opc = ISD::INTRINSIC_W_CHAIN;
-    // ToDo:
-    // Info.memVT = MVT::getVT(PtrTy->getElementType());
-    // Info.memVT = MVT::getVT(PtrTy->getType());
+    Info.memVT = MVT::getVT(PtrTy);
     Info.ptrVal = I.getArgOperand(0);
     Info.offset = 0;
     Info.align = Align(M.getDataLayout().getTypeAllocSizeInBits(PtrTy) / 16);
@@ -2709,12 +2707,10 @@ SDValue RL78TargetLowering::LowerSTORE(SDValue Op, SelectionDAG &DAG) const {
   EVT MemVT = ST->getMemoryVT();
   SDValue Chain = ST->getChain();
   SDValue Ptr = ST->getBasePtr();
-  unsigned int value = ST->getAlignment();
   SDLoc dl(Op);
-  // ToDo: Fix
-  // if (!allowsMemoryAccess(*DAG.getContext(), DAG.getDataLayout(), MemVT,
-  //                         ST->getAddressSpace(), MachineMemOperand::MOLoad)) {
-  if (true) {
+  bool Fast;
+  if (!allowsMemoryAccess(*DAG.getContext(), DAG.getDataLayout(), MemVT,
+                          *ST->getMemOperand(), &Fast)) {
     SDValue SubRegHi = DAG.getTargetConstant(RL78::sub_hi, dl, MVT::i8);
     SDValue SubRegLow = DAG.getTargetConstant(RL78::sub_lo, dl, MVT::i8);
 
@@ -2726,12 +2722,12 @@ SDValue RL78TargetLowering::LowerSTORE(SDValue Op, SelectionDAG &DAG) const {
     unsigned IncrementSize = (MemVT.getSizeInBits() >> 1) / 8;
     SDValue Store1 =
         DAG.getTruncStore(Chain, dl, SDValue(Lo, 0), Ptr, ST->getPointerInfo(),
-                          MVT::i8, Align(value), ST->getMemOperand()->getFlags());
+                          MVT::i8, ST->getAlign(), ST->getMemOperand()->getFlags());
     Ptr = DAG.getObjectPtrOffset(dl, Ptr, TypeSize::Fixed(IncrementSize));
     SDValue Store2 =
         DAG.getTruncStore(Chain, dl, SDValue(Hi, 0), Ptr,
                           ST->getPointerInfo().getWithOffset(IncrementSize),
-                          MVT::i8, MinAlign(value, IncrementSize),
+                          MVT::i8, MinAlign(ST->getAlignment(), IncrementSize),
                           ST->getMemOperand()->getFlags(), ST->getAAInfo());
 
     SDValue lowered =
@@ -5148,9 +5144,7 @@ void RL78TargetLowering::ReplaceNodeResults(SDNode *N,
     AddrSpaceCastSDNode *CastNode = dyn_cast<AddrSpaceCastSDNode>(N);
     SDValue NullConstant = DAG.getConstant(0x00, dl, MVT::i16);
     SDValue LowValue;
-    // ToDo: implement
-    // bool IsSrcAddress = CastNode->isFunctionToPointerDecay();
-    bool IsSrcAddress = false;
+    bool IsSrcAddress = CastNode->isFunctionToPointerDecay();
     if (GlobalAddressSDNode *G =
             dyn_cast<GlobalAddressSDNode>(N->getOperand(0))) {
       const GlobalValue *GV = G->getGlobal();

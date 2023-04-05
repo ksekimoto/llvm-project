@@ -1133,8 +1133,32 @@ void TextNodeDumper::VisitUnaryOperator(const UnaryOperator *Node) {
 
 void TextNodeDumper::VisitUnaryExprOrTypeTraitExpr(
     const UnaryExprOrTypeTraitExpr *Node) {
+#if 0
   OS << " " << getTraitSpelling(Node->getKind());
-
+#endif
+  switch (Node->getKind()) {
+  case UETT_SizeOf:
+    OS << " sizeof";
+    break;
+  case UETT_AlignOf:
+    OS << " alignof";
+    break;
+  case UETT_VecStep:
+    OS << " vec_step";
+    break;
+  case UETT_OpenMPRequiredSimdAlign:
+    OS << " __builtin_omp_required_simd_align";
+    break;
+  case UETT_PreferredAlignOf:
+    OS << " __alignof";
+    break;
+  case UETT_SecTop:
+    OS << " __sectop";
+    break;
+  case UETT_SecEnd:
+    OS << " __secend";
+    break;
+  }
   if (Node->isArgumentType())
     dumpType(Node->getArgumentType());
 }

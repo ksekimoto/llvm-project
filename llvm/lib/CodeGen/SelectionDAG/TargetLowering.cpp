@@ -171,7 +171,7 @@ TargetLowering::makeLibCall(SelectionDAG &DAG, RTLIB::Libcall LC, EVT RetVT,
     report_fatal_error("Unsupported library call operation!");
   // SDValue Callee = DAG.getExternalSymbol(getLibcallName(LC),
   //                                        getPointerTy(DAG.getDataLayout()));
-  // RL78
+  // 2023/04/03 KS Added for RL78
   SDValue Callee = DAG.getExternalSymbol(getLibcallName(LC),
                                          getPointerTy(DAG.getDataLayout(), DAG.getDataLayout().getProgramAddressSpace()));
 
@@ -8763,6 +8763,7 @@ SDValue TargetLowering::LowerToTLSEmulatedModel(const GlobalAddressSDNode *GA,
   // Access to address of TLS varialbe xyz is lowered to a function call:
   //   __emutls_get_address( address of global variable named "__emutls_v.xyz" )
   // EVT PtrVT = getPointerTy(DAG.getDataLayout());
+  // 2023/04/03 KS Added for RL78
   EVT PtrVT = getPointerTy(DAG.getDataLayout(), DAG.getDataLayout().getProgramAddressSpace());
 
   PointerType *VoidPtrType = Type::getInt8PtrTy(*DAG.getContext());

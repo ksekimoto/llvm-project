@@ -6107,7 +6107,7 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
         else
           TC = std::make_unique<toolchains::BareMetal>(*this, Target, Args);
         break;
-      case llvm::Triple::RL78:
+      case llvm::Triple::rl78:
         TC = std::make_unique<toolchains::RL78ToolChain>(*this, Target, Args);
         break;
       case llvm::Triple::ve:

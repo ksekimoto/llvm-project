@@ -215,11 +215,10 @@ public:
 
   bool isTruncateFree(EVT FromVT, EVT ToVT) const override { return true; }
 
-  // RL78
-  // bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override {
-  //   return SrcAS == DestAS ||
-  //          (RL78AS::Near == SrcAS && RL78AS::Default == DestAS);
-  // }
+  bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override {
+    return SrcAS == DestAS ||
+           (RL78AS::Near == SrcAS && RL78AS::Default == DestAS);
+  }
 
   bool mayBeEmittedAsTailCall(const CallInst *CI) const override {
     return CI->isTailCall();

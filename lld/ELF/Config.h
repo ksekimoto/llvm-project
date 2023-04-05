@@ -218,6 +218,7 @@ struct Configuration {
   bool relrPackDynRelocs = false;
   llvm::DenseSet<llvm::StringRef> saveTempsArgs;
   std::vector<std::pair<llvm::GlobPattern, uint32_t>> shuffleSections;
+  bool RL78FarCode;
   bool singleRoRx;
   bool shared;
   bool symbolic;

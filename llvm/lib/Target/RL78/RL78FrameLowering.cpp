@@ -65,17 +65,14 @@ void RL78FrameLowering::emitPrologue(MachineFunction &MF,
   MachineFrameInfo &MFI = MF.getFrameInfo();
   const RL78InstrInfo &TII =
       *static_cast<const RL78InstrInfo *>(MF.getSubtarget().getInstrInfo());
-  // ToDo: Fix
-  // const RL78RegisterInfo &RegInfo = *static_cast<const RL78RegisterInfo *>(
-  //     MF.getSubtarget().getRegisterInfo());
+  const RL78RegisterInfo &RegInfo = *static_cast<const RL78RegisterInfo *>(
+      MF.getSubtarget().getRegisterInfo());
   MachineBasicBlock::iterator MBBI = MBB.begin();
   SmallVector<unsigned, 4> CSR;
   // Debug location must be unknown since the first debug location is used
   // to determine the end of the prologue.
   DebugLoc dl;
-  // ToDo: Fix
-  // bool NeedsStackRealignment = RegInfo.needsStackRealignment(MF);
-  bool NeedsStackRealignment = true;
+  bool NeedsStackRealignment = RegInfo.shouldRealignStack(MF);
 
   // Get the number of bytes to allocate from the FrameInfo
   // TODO: if we are using FP, we are wasting stack here, since we will
@@ -448,12 +445,9 @@ void RL78FrameLowering::emitEpilogue(MachineFunction &MF,
   unsigned NumBytesAdjusted = NumBytes - NumBytesForCSRegs;
 
   // Restore the old SP.
-  bool flag = false;
-  // ToDo: Fix
-  // const RL78RegisterInfo &RegInfo = *static_cast<const RL78RegisterInfo *>(
-  //     MF.getSubtarget().getRegisterInfo());
-  // if (RegInfo.needsStackRealignment(MF)) {
-  if (flag) {
+  const RL78RegisterInfo &RegInfo = *static_cast<const RL78RegisterInfo *>(
+      MF.getSubtarget().getRegisterInfo());
+  if (RegInfo.shouldRealignStack(MF)) {
     BuildMI(MBB, MBBI, dl, TII.get(RL78::XCHW_AX_rp), RL78::RP0)
         .addReg(RL78::RP6, RegState::Define)
         .addReg(RL78::RP0, RegState::Kill)
@@ -599,14 +593,11 @@ RL78FrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const RL78RegisterInfo *RegInfo = Subtarget.getRegisterInfo();
 
-  bool flag = false;
   int64_t FrameOffset = MFI.getObjectOffset(FI);
   auto stackSize = MFI.getStackSize();
   if ((FI < 0) && (FrameOffset >= 0))
     FrameReg = RL78::SPreg;
-  // ToDo: Fix
-  // else if (RegInfo->needsStackRealignment(MF) && (FI < 0))
-  else if (flag)
+  else if (RegInfo->shouldRealignStack(MF) && (FI < 0))
     // References to passed parameters need to load the old SP first.
     FrameReg = RL78::RP4;
   else

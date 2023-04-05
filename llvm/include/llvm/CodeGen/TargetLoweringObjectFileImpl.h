@@ -68,6 +68,9 @@ public:
 
   MCSection *getSectionForJumpTable(const Function &F,
                                     const TargetMachine &TM) const override;
+// 2023/04/03 KS Added for RL78
+  virtual std::string getSectionPrefixForGlobal(SectionKind Kind,
+                            const GlobalObject *GO = nullptr) const;
   MCSection *getSectionForLSDA(const Function &F, const MCSymbol &FnSym,
                                const TargetMachine &TM) const override;
 

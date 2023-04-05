@@ -2952,7 +2952,7 @@ bool Generic_GCC::IsIntegratedAssemblerDefault() const {
   case llvm::Triple::riscv32:
   case llvm::Triple::riscv64:
 //TODO: do we need this?
-  case llvm::Triple::RL78:
+  case llvm::Triple::rl78:
   case llvm::Triple::sparc:
   case llvm::Triple::sparcel:
   case llvm::Triple::sparcv9:

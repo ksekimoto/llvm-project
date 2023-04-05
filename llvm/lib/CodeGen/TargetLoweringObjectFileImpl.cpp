@@ -607,6 +607,8 @@ static unsigned getEntrySizeForKind(SectionKind Kind) {
   }
 }
 
+
+// 2023/04/03 KS Added for RL78
 /// Return the section prefix name used by options FunctionsSections and
 /// DataSections.
 static StringRef getSectionPrefixForGlobal(SectionKind Kind) {
@@ -622,9 +624,13 @@ static StringRef getSectionPrefixForGlobal(SectionKind Kind) {
     return ".tbss";
   if (Kind.isData())
     return ".data";
-  if (Kind.isReadOnlyWithRel())
-    return ".data.rel.ro";
-  llvm_unreachable("Unknown section kind");
+  assert(Kind.isReadOnlyWithRel() && "Unknown section kind");
+  return ".data.rel.ro";
+}
+
+std::string TargetLoweringObjectFileELF::getSectionPrefixForGlobal(
+    SectionKind Kind, const GlobalObject *GO) const {
+  return getSectionPrefixForGlobal(Kind);
 }
 
 static SmallString<128>

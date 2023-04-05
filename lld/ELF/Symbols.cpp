@@ -109,6 +109,10 @@ static uint64_t getSymVA(const Symbol &sym, int64_t addend) {
     // line (and how they get built), then you have a pretty good
     // understanding of the linker.
     uint64_t va = isec->getVA(offset);
+
+    // RL78 secend symbol should point to the end of section address + 1
+    if (config->emachine == EM_RL78 && sym.getName().startswith("__stop_"))
+      va += 1;
     if (d.isSection())
       va -= addend;
 

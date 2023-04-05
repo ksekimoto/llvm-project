@@ -141,6 +141,8 @@ unsigned MCSymbolELF::getType() const {
     return ELF::STT_TLS;
   case 6:
     return ELF::STT_GNU_IFUNC;
+  case 7:
+    return ELF::STT_HIPROC;
   }
 }
 

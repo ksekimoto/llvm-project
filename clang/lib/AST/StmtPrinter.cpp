@@ -1424,6 +1424,7 @@ void StmtPrinter::VisitOffsetOfExpr(OffsetOfExpr *Node) {
 
 void StmtPrinter::VisitUnaryExprOrTypeTraitExpr(
     UnaryExprOrTypeTraitExpr *Node) {
+#if 0
   const char *Spelling = getTraitSpelling(Node->getKind());
   if (Node->getKind() == UETT_AlignOf) {
     if (Policy.Alignof)
@@ -1435,7 +1436,35 @@ void StmtPrinter::VisitUnaryExprOrTypeTraitExpr(
   }
 
   OS << Spelling;
-
+#endif
+  switch(Node->getKind()) {
+  case UETT_SizeOf:
+    OS << "sizeof";
+    break;
+  case UETT_AlignOf:
+    if (Policy.Alignof)
+      OS << "alignof";
+    else if (Policy.UnderscoreAlignof)
+      OS << "_Alignof";
+    else
+      OS << "__alignof";
+    break;
+  case UETT_PreferredAlignOf:
+    OS << "__alignof";
+    break;
+  case UETT_VecStep:
+    OS << "vec_step";
+    break;
+  case UETT_OpenMPRequiredSimdAlign:
+    OS << "__builtin_omp_required_simd_align";
+    break;
+  case UETT_SecTop:
+    OS << "__sectop";
+    break;
+  case UETT_SecEnd:
+    OS << "__secend";
+    break;
+  }
   if (Node->isArgumentType()) {
     OS << '(';
     Node->getArgumentType().print(OS, Policy);

@@ -3132,9 +3132,11 @@ unsigned CastInst::isEliminableCastPair(
       //          bitcast (addrspacecast function_pointer) to data pointer
       // can't be merged. See InstCombiner::visitAddrSpaceCast.
       // TODO: make it rl78 specific
-      if (SrcTy->isPointerTy() && DstTy->isPointerTy() &&
-          SrcTy->getPointerElementType()->isFunctionTy() !=
-              DstTy->getPointerElementType()->isFunctionTy())
+      // if (SrcTy->isPointerTy() && DstTy->isPointerTy() &&
+      //     SrcTy->getPointerElementType()->isFunctionTy() !=
+      //         DstTy->getPointerElementType()->isFunctionTy())
+      // 2023/04/03 KS Modified for RL78
+      if (SrcTy->isPointerTy() && DstTy->isPointerTy())
         return 0;      
       assert(
         SrcTy->isPtrOrPtrVectorTy() &&

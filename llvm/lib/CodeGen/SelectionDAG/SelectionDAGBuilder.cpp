@@ -3527,8 +3527,10 @@ void SelectionDAGBuilder::visitAddrSpaceCast(const User &I) {
   unsigned SrcAS = SV->getType()->getPointerAddressSpace();
   unsigned DestAS = I.getType()->getPointerAddressSpace();
 
+// 2023/04/03 KS Added for RL78
   if (!TM.isNoopAddrSpaceCast(SrcAS, DestAS))
-    N = DAG.getAddrSpaceCast(getCurSDLoc(), DestVT, N, SrcAS, DestAS);
+    N = DAG.getAddrSpaceCast(getCurSDLoc(), DestVT, N, SrcAS, DestAS,
+        SV->getType()->getPointerElementType()->isFunctionTy());
 
   setValue(&I, N);
 }
@@ -3919,9 +3921,27 @@ void SelectionDAGBuilder::visitGetElementPtr(const User &I) {
         if (Offs.isNonNegative() && cast<GEPOperator>(I).isInBounds())
           Flags.setNoUnsignedWrap(true);
 
-        OffsVal = DAG.getSExtOrTrunc(OffsVal, dl, N.getValueType());
-
-        N = DAG.getNode(ISD::ADD, dl, N.getValueType(), N, OffsVal, Flags);
+// 2023/04/03 KS Added for RL78
+        if (DAG.getTarget().getTargetTriple().isRL78() &&
+            N.getValueType().getSizeInBits() == 32) {
+          // Since for RL78 data alocation is prohibited accross segments,
+          // offsets are
+          // added to the lower 16bytes only
+          OffsVal = DAG.getSExtOrTrunc(OffsVal, dl, MVT::i16);
+          SDValue LowAddress = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i16,
+                                           N, DAG.getConstant(0, dl, MVT::i16));
+          SDValue HighAddress =
+              DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i16, N,
+                          DAG.getConstant(1, dl, MVT::i16));
+          SDValue LowAddressAndOffset =
+              DAG.getNode(ISD::ADD, dl, LowAddress.getValueType(), LowAddress,
+                          OffsVal, Flags);
+          N = DAG.getNode(ISD::BUILD_PAIR, dl, N.getValueType(),
+                          LowAddressAndOffset, HighAddress, Flags);
+        } else {
+          OffsVal = DAG.getSExtOrTrunc(OffsVal, dl, N.getValueType());
+          N = DAG.getNode(ISD::ADD, dl, N.getValueType(), N, OffsVal, Flags);
+        }
         continue;
       }
 
@@ -3940,7 +3960,6 @@ void SelectionDAGBuilder::visitGetElementPtr(const User &I) {
       // If the index is smaller or larger than intptr_t, truncate or extend
       // it.
       IdxN = DAG.getSExtOrTrunc(IdxN, dl, N.getValueType());
-
       if (ElementScalable) {
         EVT VScaleTy = N.getValueType().getScalarType();
         SDValue VScale = DAG.getNode(
@@ -5764,9 +5783,10 @@ static unsigned FixedPointIntrinsicToOpcode(unsigned Intrinsic) {
 void SelectionDAGBuilder::lowerCallToExternalSymbol(const CallInst &I,
                                            const char *FunctionName) {
   assert(FunctionName && "FunctionName must not be nullptr");
+// 2023/04/03 KS Added for RL78
   SDValue Callee = DAG.getExternalSymbol(
       FunctionName,
-      DAG.getTargetLoweringInfo().getPointerTy(DAG.getDataLayout()));
+      DAG.getTargetLoweringInfo().getPointerTy(DAG.getDataLayout(), DAG.getDataLayout().getProgramAddressSpace()));
   LowerCallTo(I, Callee, I.isTailCall(), I.isMustTailCall());
 }
 
@@ -6794,10 +6814,11 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     }
 
     TargetLowering::CallLoweringInfo CLI(DAG);
+// 2023/04/03 KS Added for RL78
     CLI.setDebugLoc(sdl).setChain(getRoot()).setLibCallee(
         CallingConv::C, I.getType(),
         DAG.getExternalSymbol(TrapFuncName.data(),
-                              TLI.getPointerTy(DAG.getDataLayout())),
+                              TLI.getPointerTy(DAG.getDataLayout(), DAG.getDataLayout().getProgramAddressSpace())),
         std::move(Args));
 
     std::pair<SDValue, SDValue> Result = TLI.LowerCallTo(CLI);
@@ -8920,7 +8941,12 @@ void SelectionDAGBuilder::visitInlineAsm(const CallBase &Call,
         OpFlag = InlineAsm::convertMemFlagWordToMatchingFlagWord(OpFlag);
         OpFlag = InlineAsm::getFlagWordForMatchingOp(OpFlag,
                                                     OpInfo.getMatchedOperand());
-        AsmNodeOperands.push_back(DAG.getTargetConstant(
+// 2023/04/03 KS Added for RL78
+        if(llvm::isUInt<32>(OpFlag) && (TLI.getPointerTy(DAG.getDataLayout()).getSizeInBits() < 32))
+          AsmNodeOperands.push_back(DAG.getTargetConstant(
+            OpFlag, getCurSDLoc(), MVT::i32));
+        else
+          AsmNodeOperands.push_back(DAG.getTargetConstant(
             OpFlag, getCurSDLoc(), TLI.getPointerTy(DAG.getDataLayout())));
         AsmNodeOperands.push_back(AsmNodeOperands[CurOp+1]);
         break;

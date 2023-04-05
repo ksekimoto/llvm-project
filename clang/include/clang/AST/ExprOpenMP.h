@@ -50,7 +50,7 @@ namespace clang {
 /// When the size of the array dimension is not known, the length must be
 /// specified explicitly.
 /// When the stride is absent it defaults to 1.
-/// When the length is absent it defaults to ⌈(size − lower-bound)/stride⌉,
+/// When the length is absent it defaults to ?(size ? lower-bound)/stride?,
 /// where size is the size of the array dimension. When the lower-bound is
 /// absent it defaults to 0.
 class OMPArraySectionExpr : public Expr {

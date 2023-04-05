@@ -3982,8 +3982,17 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
       Entry->removeDeadConstantUsers();
     }
 
-    llvm::Constant *BC = llvm::ConstantExpr::getBitCast(
-        F, Entry->getValueType()->getPointerTo());
+    // llvm::Constant *BC = llvm::ConstantExpr::getBitCast(
+    //     F, Entry->getValueType()->getPointerTo());
+
+    llvm::Constant *BC = nullptr;
+    if (Context.getLangOpts().RenesasRL78)
+      BC = llvm::ConstantExpr::getBitCast(
+          F, Entry->getValueType()->getPointerTo(
+                 F->getAddressSpace()));
+    else
+      BC = llvm::ConstantExpr::getBitCast(
+          F, Entry->getValueType()->getPointerTo());
     addGlobalValReplacement(Entry, BC);
   }
 

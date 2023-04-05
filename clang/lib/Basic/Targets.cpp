@@ -133,7 +133,7 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
     return new LanaiTargetInfo(Triple, Opts);
 
 // 2023/03/12 KS Added for RL78
-  case llvm::Triple::RL78:
+  case llvm::Triple::rl78:
     return new RL78TargetInfo(Triple, Opts);
 
   case llvm::Triple::aarch64_32:

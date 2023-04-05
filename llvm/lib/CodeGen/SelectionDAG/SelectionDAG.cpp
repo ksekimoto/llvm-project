@@ -2168,8 +2168,9 @@ SDValue SelectionDAG::getBitcast(EVT VT, SDValue V) {
   return getNode(ISD::BITCAST, SDLoc(V), VT, V);
 }
 
+// 2023/04/03 KS Added for RL78
 SDValue SelectionDAG::getAddrSpaceCast(const SDLoc &dl, EVT VT, SDValue Ptr,
-                                       unsigned SrcAS, unsigned DestAS) {
+                                       unsigned SrcAS, unsigned DestAS, bool SrcIsProgAS) {
   SDValue Ops[] = {Ptr};
   FoldingSetNodeID ID;
   AddNodeIDNode(ID, ISD::ADDRSPACECAST, getVTList(VT), Ops);
@@ -2180,8 +2181,9 @@ SDValue SelectionDAG::getAddrSpaceCast(const SDLoc &dl, EVT VT, SDValue Ptr,
   if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP))
     return SDValue(E, 0);
 
+// 2023/04/03 KS Added for RL78
   auto *N = newSDNode<AddrSpaceCastSDNode>(dl.getIROrder(), dl.getDebugLoc(),
-                                           VT, SrcAS, DestAS);
+                                           VT, SrcAS, DestAS, SrcIsProgAS);
   createOperands(N, Ops);
 
   CSEMap.InsertNode(N, IP);
@@ -7222,13 +7224,14 @@ SDValue SelectionDAG::getMemcpy(SDValue Chain, const SDLoc &dl, SDValue Dst,
   Entry.Ty = getDataLayout().getIntPtrType(*getContext());
   Entry.Node = Size; Args.push_back(Entry);
   // FIXME: pass in SDLoc
+  // 2023/04/03 KS Added for RL78
   TargetLowering::CallLoweringInfo CLI(*this);
   CLI.setDebugLoc(dl)
       .setChain(Chain)
       .setLibCallee(TLI->getLibcallCallingConv(RTLIB::MEMCPY),
                     Dst.getValueType().getTypeForEVT(*getContext()),
                     getExternalSymbol(TLI->getLibcallName(RTLIB::MEMCPY),
-                                      TLI->getPointerTy(getDataLayout())),
+                                      TLI->getPointerTy(getDataLayout(), getDataLayout().getProgramAddressSpace())),
                     std::move(Args))
       .setDiscardResult()
       .setTailCall(isTailCall);
@@ -7262,13 +7265,14 @@ SDValue SelectionDAG::getAtomicMemcpy(SDValue Chain, const SDLoc &dl,
   if (LibraryCall == RTLIB::UNKNOWN_LIBCALL)
     report_fatal_error("Unsupported element size");
 
+  // 2023/04/03 KS Added for RL78
   TargetLowering::CallLoweringInfo CLI(*this);
   CLI.setDebugLoc(dl)
       .setChain(Chain)
       .setLibCallee(TLI->getLibcallCallingConv(LibraryCall),
                     Type::getVoidTy(*getContext()),
                     getExternalSymbol(TLI->getLibcallName(LibraryCall),
-                                      TLI->getPointerTy(getDataLayout())),
+                                      TLI->getPointerTy(getDataLayout(), getDataLayout().getProgramAddressSpace())),
                     std::move(Args))
       .setDiscardResult()
       .setTailCall(isTailCall);
@@ -7323,6 +7327,7 @@ SDValue SelectionDAG::getMemmove(SDValue Chain, const SDLoc &dl, SDValue Dst,
 
   Entry.Ty = getDataLayout().getIntPtrType(*getContext());
   Entry.Node = Size; Args.push_back(Entry);
+  // 2023/04/03 KS Added for RL78
   // FIXME:  pass in SDLoc
   TargetLowering::CallLoweringInfo CLI(*this);
   CLI.setDebugLoc(dl)
@@ -7330,7 +7335,7 @@ SDValue SelectionDAG::getMemmove(SDValue Chain, const SDLoc &dl, SDValue Dst,
       .setLibCallee(TLI->getLibcallCallingConv(RTLIB::MEMMOVE),
                     Dst.getValueType().getTypeForEVT(*getContext()),
                     getExternalSymbol(TLI->getLibcallName(RTLIB::MEMMOVE),
-                                      TLI->getPointerTy(getDataLayout())),
+                                      TLI->getPointerTy(getDataLayout(), getDataLayout().getProgramAddressSpace())),
                     std::move(Args))
       .setDiscardResult()
       .setTailCall(isTailCall);
@@ -7364,13 +7369,14 @@ SDValue SelectionDAG::getAtomicMemmove(SDValue Chain, const SDLoc &dl,
   if (LibraryCall == RTLIB::UNKNOWN_LIBCALL)
     report_fatal_error("Unsupported element size");
 
+  // 2023/04/03 KS Added for RL78
   TargetLowering::CallLoweringInfo CLI(*this);
   CLI.setDebugLoc(dl)
       .setChain(Chain)
       .setLibCallee(TLI->getLibcallCallingConv(LibraryCall),
                     Type::getVoidTy(*getContext()),
                     getExternalSymbol(TLI->getLibcallName(LibraryCall),
-                                      TLI->getPointerTy(getDataLayout())),
+                                      TLI->getPointerTy(getDataLayout(), getDataLayout().getProgramAddressSpace())),
                     std::move(Args))
       .setDiscardResult()
       .setTailCall(isTailCall);
@@ -7456,10 +7462,11 @@ SDValue SelectionDAG::getMemset(SDValue Chain, const SDLoc &dl, SDValue Dst,
     Args.push_back(CreateEntry(Dst, Type::getInt8PtrTy(Ctx)));
     Args.push_back(CreateEntry(Src, Src.getValueType().getTypeForEVT(Ctx)));
     Args.push_back(CreateEntry(Size, DL.getIntPtrType(Ctx)));
+    // 2023/04/03 KS Added for RL78
     CLI.setLibCallee(TLI->getLibcallCallingConv(RTLIB::MEMSET),
                      Dst.getValueType().getTypeForEVT(Ctx),
                      getExternalSymbol(TLI->getLibcallName(RTLIB::MEMSET),
-                                       TLI->getPointerTy(DL)),
+                                       TLI->getPointerTy(getDataLayout(), getDataLayout().getProgramAddressSpace())),
                      std::move(Args));
   }
 
@@ -7494,13 +7501,14 @@ SDValue SelectionDAG::getAtomicMemset(SDValue Chain, const SDLoc &dl,
   if (LibraryCall == RTLIB::UNKNOWN_LIBCALL)
     report_fatal_error("Unsupported element size");
 
+  // 2023/04/03 KS Added for RL78
   TargetLowering::CallLoweringInfo CLI(*this);
   CLI.setDebugLoc(dl)
       .setChain(Chain)
       .setLibCallee(TLI->getLibcallCallingConv(LibraryCall),
                     Type::getVoidTy(*getContext()),
                     getExternalSymbol(TLI->getLibcallName(LibraryCall),
-                                      TLI->getPointerTy(getDataLayout())),
+                                      TLI->getPointerTy(getDataLayout(), getDataLayout().getProgramAddressSpace())),
                     std::move(Args))
       .setDiscardResult()
       .setTailCall(isTailCall);
@@ -10790,11 +10798,12 @@ GlobalAddressSDNode::GlobalAddressSDNode(unsigned Opc, unsigned Order,
   TheGlobal = GA;
 }
 
+// 2023/04/03 KS Added for RL78
 AddrSpaceCastSDNode::AddrSpaceCastSDNode(unsigned Order, const DebugLoc &dl,
                                          EVT VT, unsigned SrcAS,
-                                         unsigned DestAS)
+                                         unsigned DestAS,  bool SrcIsProgAS)
     : SDNode(ISD::ADDRSPACECAST, Order, dl, getSDVTList(VT)),
-      SrcAddrSpace(SrcAS), DestAddrSpace(DestAS) {}
+      SrcAddrSpace(SrcAS), DestAddrSpace(DestAS), SrcIsProgramAddrSpace(SrcIsProgAS) {}
 
 MemSDNode::MemSDNode(unsigned Opc, unsigned Order, const DebugLoc &dl,
                      SDVTList VTs, EVT memvt, MachineMemOperand *mmo)

@@ -49049,7 +49049,7 @@ static SDValue combineLoad(SDNode *N, SelectionDAG &DAG,
     MVT PtrVT = TLI.getPointerTy(DAG.getDataLayout());
     if (PtrVT != Ld->getBasePtr().getSimpleValueType()) {
       SDValue Cast =
-          DAG.getAddrSpaceCast(dl, PtrVT, Ld->getBasePtr(), AddrSpace, 0);
+          DAG.getAddrSpaceCast(dl, PtrVT, Ld->getBasePtr(), AddrSpace, 0, false);
       return DAG.getLoad(RegVT, dl, Ld->getChain(), Cast, Ld->getPointerInfo(),
                          Ld->getOriginalAlign(),
                          Ld->getMemOperand()->getFlags());
@@ -49553,7 +49553,7 @@ static SDValue combineStore(SDNode *N, SelectionDAG &DAG,
     MVT PtrVT = TLI.getPointerTy(DAG.getDataLayout());
     if (PtrVT != St->getBasePtr().getSimpleValueType()) {
       SDValue Cast =
-          DAG.getAddrSpaceCast(dl, PtrVT, St->getBasePtr(), AddrSpace, 0);
+          DAG.getAddrSpaceCast(dl, PtrVT, St->getBasePtr(), AddrSpace, 0, false);
       return DAG.getStore(St->getChain(), dl, StoredVal, Cast,
                           St->getPointerInfo(), St->getOriginalAlign(),
                           St->getMemOperand()->getFlags(), St->getAAInfo());

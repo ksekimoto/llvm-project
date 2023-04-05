@@ -719,6 +719,9 @@ defm mips_got_size:
   Eq<"mips-got-size", "Max size of a single MIPS GOT. 0x10000 by default.">,
   Flags<[HelpHidden]>;
 
+// RL78 option used to disable plt usage
+def mfar_code: F<"mfar-code">, HelpText<"Use far code model, disables PLT usage.">;
+
 // Hidden option used to opt-in to additional output checks.
 defm check_dynamic_relocations: BB<"check-dynamic-relocations",
     "Perform additional validation of the written dynamic relocations",

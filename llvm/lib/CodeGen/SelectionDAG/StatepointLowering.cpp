@@ -1328,7 +1328,7 @@ void SelectionDAGBuilder::LowerDeoptimizeCall(const CallInst *CI) {
   const auto &TLI = DAG.getTargetLoweringInfo();
   // SDValue Callee = DAG.getExternalSymbol(TLI.getLibcallName(RTLIB::DEOPTIMIZE),
   //                                        TLI.getPointerTy(DAG.getDataLayout()));
-  // RL78
+// 2023/04/03 KS Added for RL78
   SDValue Callee = DAG.getExternalSymbol(TLI.getLibcallName(RTLIB::DEOPTIMIZE),
                                          TLI.getPointerTy(DAG.getDataLayout(), DAG.getDataLayout().getProgramAddressSpace()));
 

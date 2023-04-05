@@ -508,6 +508,14 @@ public:
            // Consider pointer size address spaces to be equivalent to default.
            ((isPtrSizeAddressSpace(A) || A == LangAS::Default) &&
             (isPtrSizeAddressSpace(B) || B == LangAS::Default)) ||
+           // On Renesas RL78 the Default address space can be:
+           // __near in which case __far is a superset of Default.
+           // __far in which case Default is a superset of __near.
+           //(A == LangAS::__far && B == LangAS::Default) ||
+           (A == LangAS::__near && B == LangAS::Default) ||
+           (A == LangAS::Default && B == LangAS::__near) ||
+           (A == LangAS::__far && B == LangAS::__near) ||
+           (A == LangAS::__far && B == LangAS::Default) ||
            // Default is a superset of SYCL address spaces.
            (A == LangAS::Default &&
             (B == LangAS::sycl_private || B == LangAS::sycl_local ||

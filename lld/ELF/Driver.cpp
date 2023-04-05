@@ -1157,7 +1157,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->relax = args.hasFlag(OPT_relax, OPT_no_relax, true);
   config->rpath = getRpath(args);
   config->relocatable = args.hasArg(OPT_relocatable);
-
+  config->RL78FarCode = args.hasArg(OPT_mfar_code);
   if (args.hasArg(OPT_save_temps)) {
     // --save-temps implies saving all temps.
     for (const char *s : saveTempsValues)

@@ -480,7 +480,7 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
     if (const Arg *A = Args.getLastArg(options::OPT_mcpu_EQ))
       return A->getValue();
     return "";
-  case llvm::Triple::RL78:
+  case llvm::Triple::rl78:
     return getRL78TargetCPU(Args);
   }
 }
