@@ -266,12 +266,12 @@ bool RL78MCExpr::isTargetExpr(const MCExpr *expression) {
   case MCExpr::Target:
           return true;
   case MCExpr::Binary: {
-      const MCBinaryExpr *BinaryExpr = static_cast<const MCBinaryExpr *>(expression);
+      auto *BinaryExpr = dyn_cast<MCBinaryExpr>(expression);
       return isTargetExpr(BinaryExpr->getLHS()) || 
              isTargetExpr(BinaryExpr->getRHS());
   }
   case MCExpr::Unary: {
-      const MCUnaryExpr *UnaryExpr = static_cast<const MCUnaryExpr *>(expression);
+      auto *UnaryExpr = dyn_cast<MCUnaryExpr>(expression);
       return isTargetExpr(UnaryExpr->getSubExpr());
   }
   default:
@@ -357,7 +357,7 @@ bool RL78MCExpr::FoldBitPositionalExpression(const MCExpr *Value,
   // positional.
   switch (Value->getKind()) {
   case MCExpr::Target: {
-    const RL78MCExpr *TargetExpr = static_cast<const RL78MCExpr *>(Value);
+    auto *TargetExpr = dyn_cast<RL78MCExpr>(Value);
     if (TargetExpr->getVariantKind() == VK_RL78_BITPOSITIONAL) {
       return TargetExpr->getBitPositionalAddressSubExpr()
                  ->evaluateAsRelocatable(AddressValue, nullptr, nullptr) &&
@@ -367,7 +367,7 @@ bool RL78MCExpr::FoldBitPositionalExpression(const MCExpr *Value,
     break;
   }
   case MCExpr::Binary: {
-    const MCBinaryExpr *BinaryExpr = static_cast<const MCBinaryExpr *>(Value);
+    auto *BinaryExpr = dyn_cast<MCBinaryExpr>(Value);
     MCBinaryExpr::Opcode Op = BinaryExpr->getOpcode();
     // The order counts:
     // Const + Addr.Bitpos -> (Const + Addr).Bitpos
@@ -387,11 +387,11 @@ bool RL78MCExpr::FoldBitPositionalExpression(const MCExpr *Value,
       // A1.X OpCode Sym
       // Sym AnyOpExceptSub Sym.B
       // If we have a bit position, but RHS/LHS finds another
-      if (LHSBitPosition != -1 && RHSBitPosition != -1 ||
-          LHSBitPosition != -1 && !RHSAddressValue.isAbsolute() ||
-          !LHSAddressValue.isAbsolute() && !RHSAddressValue.isAbsolute() &&
-              Op != MCBinaryExpr::Sub ||
-          BitPosition != -1 && (LHSBitPosition != -1 || RHSBitPosition != -1))
+      if (((LHSBitPosition != -1) && (RHSBitPosition != -1)) ||
+          ((LHSBitPosition != -1) && !RHSAddressValue.isAbsolute()) ||
+          (!LHSAddressValue.isAbsolute() && !RHSAddressValue.isAbsolute() &&
+             (Op != MCBinaryExpr::Sub)) ||
+          ((BitPosition != -1) && (LHSBitPosition != -1)) || (RHSBitPosition != -1))
         return false;
 
       BitPosition = RHSBitPosition != -1 ? RHSBitPosition : LHSBitPosition;
@@ -451,7 +451,7 @@ bool RL78MCExpr::FoldBitPositionalExpression(const MCExpr *Value,
     return false;
   }
   case MCExpr::Unary: {
-    const MCUnaryExpr *UnaryExpr = static_cast<const MCUnaryExpr *>(Value);
+    auto *UnaryExpr = dyn_cast<MCUnaryExpr>(Value);
     // we ignore the +, but error out on any other
     if (UnaryExpr->getOpcode() == MCUnaryExpr::Plus) {
       return FoldBitPositionalExpression(UnaryExpr->getSubExpr(), AddressValue,
@@ -562,12 +562,10 @@ RL78MCExpr::ConversionStatus RL78MCExpr::ConvertExpressionToFixups(
       // when X is not relocatable terms operated on by HIGH, LOW, HIGHW, LOWW,
       // MIRHW, MIRLW, SMRLW, or DATAPOS.
 
-      if (CurrentExprSet1.find(CurrentStatus.VariantKind) !=
-                  CurrentExprSet1.end() &&
-              SubExprSet1.find(SubStatus.VariantKind) != SubExprSet1.end() ||
-          CurrentExprSet2.find(CurrentStatus.VariantKind) !=
-                  CurrentExprSet2.end() &&
-              SubExprSet2.find(SubStatus.VariantKind) != SubExprSet2.end())
+      if (((CurrentExprSet1.find(CurrentStatus.VariantKind) != CurrentExprSet1.end()) &&
+           (SubExprSet1.find(SubStatus.VariantKind) != SubExprSet1.end())) ||
+          ((CurrentExprSet2.find(CurrentStatus.VariantKind) != CurrentExprSet2.end()) &&
+           (SubExprSet2.find(SubStatus.VariantKind) != SubExprSet2.end())))
         return ConversionStatus();
 
       CurrentStatus.Success = true;
@@ -591,8 +589,8 @@ RL78MCExpr::ConversionStatus RL78MCExpr::ConvertExpressionToFixups(
   }
 
   case MCExpr::Binary: {
-    const MCBinaryExpr *BinaryExpr =
-        static_cast<const MCBinaryExpr *>(Expression);
+    auto *BinaryExpr =
+        dyn_cast<MCBinaryExpr>(Expression);
     MCBinaryExpr::Opcode Op = BinaryExpr->getOpcode();
     ConversionStatus LHS = ConvertExpressionToFixups(
         BinaryExpr->getLHS(), fixups, NeedsPop, FixupFromOp, Ctx, Loc, offset);
@@ -619,10 +617,10 @@ RL78MCExpr::ConversionStatus RL78MCExpr::ConvertExpressionToFixups(
       case llvm::MCBinaryExpr::Add:
         if (!LHS.IsAbsolute && !RHS.IsAbsolute) {
           // STARTOF + SIZEOF is permitted as an exception
-          if (LHS.VariantKind == RL78MCExpr::VK_RL78_STARTOF &&
-                  RHS.VariantKind == RL78MCExpr::VK_RL78_SIZEOF ||
-              RHS.VariantKind == RL78MCExpr::VK_RL78_STARTOF &&
-                  LHS.VariantKind == RL78MCExpr::VK_RL78_SIZEOF) {
+          if (((LHS.VariantKind == RL78MCExpr::VK_RL78_STARTOF) &&
+                  (RHS.VariantKind == RL78MCExpr::VK_RL78_SIZEOF)) ||
+              ((RHS.VariantKind == RL78MCExpr::VK_RL78_STARTOF) &&
+                  (LHS.VariantKind == RL78MCExpr::VK_RL78_SIZEOF))) {
             NeedsPop = true;
             fixups.push_back(MCFixup::create(
                 offset, MCConstantExpr::create(0, Ctx),
@@ -680,7 +678,7 @@ RL78MCExpr::ConversionStatus RL78MCExpr::ConvertExpressionToFixups(
     return ConversionStatus();
   }
   case MCExpr::Unary: {
-    const MCUnaryExpr *UnaryExpr = static_cast<const MCUnaryExpr *>(Expression);
+    auto *UnaryExpr = dyn_cast<MCUnaryExpr>(Expression);
     int64_t Res;
     if (UnaryExpr->getOpcode() == MCUnaryExpr::Plus)
       return ConvertExpressionToFixups(UnaryExpr->getSubExpr(), fixups,

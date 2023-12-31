@@ -10510,10 +10510,10 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
       return {};
 // 2023/03/12 KS Added for RL78
     if (!ModifiedPointee) {
-    if (getCanonicalType(LHSPointee) == getCanonicalType(ResultType))
-      return LHS;
-    if (getCanonicalType(RHSPointee) == getCanonicalType(ResultType))
-      return RHS;
+      if (getCanonicalType(LHSPointee) == getCanonicalType(ResultType))
+        return LHS;
+      if (getCanonicalType(RHSPointee) == getCanonicalType(ResultType))
+        return RHS;
     }
     return getPointerType(ResultType);
   }

@@ -886,7 +886,7 @@ bool MCExpr::evaluateAsRelocatableImpl(MCValue &Res, const MCAssembler *Asm,
                                                   Addrs, InSet)) {
       // Check if both are Target Expressions, see if we can compare them.
       if (const MCTargetExpr *L = dyn_cast<MCTargetExpr>(ABE->getLHS()))
-        if (const MCTargetExpr *R = dyn_cast<MCTargetExpr>(ABE->getRHS())) {
+        if (const MCTargetExpr *R = cast<MCTargetExpr>(ABE->getRHS())) {
           switch (ABE->getOpcode()) {
           case MCBinaryExpr::EQ:
             Res = MCValue::get((L->isEqualTo(R)) ? -1 : 0);

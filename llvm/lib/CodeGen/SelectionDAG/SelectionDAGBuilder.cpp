@@ -3528,7 +3528,7 @@ void SelectionDAGBuilder::visitAddrSpaceCast(const User &I) {
   unsigned DestAS = I.getType()->getPointerAddressSpace();
 
 // 2023/04/03 KS Added for RL78
-  if (!TM.isNoopAddrSpaceCast(SrcAS, DestAS))
+  if (!TLI.isNoopAddrSpaceCast(SrcAS, DestAS))
     N = DAG.getAddrSpaceCast(getCurSDLoc(), DestVT, N, SrcAS, DestAS,
         SV->getType()->getPointerElementType()->isFunctionTy());
 

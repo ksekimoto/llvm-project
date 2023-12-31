@@ -588,8 +588,8 @@ AsmToken AsmLexer::LexDigit() {
     if (CurPtr[0] == '.' &&  (NumStart == CurPtr || !MAI.hasRL78Expressions()) || CurPtr[0] == 'p' || CurPtr[0] == 'P')
       return LexHexFloatLiteral(NumStart == CurPtr);
 
-	  if (CurPtr[0] == '.' &&  MAI.hasRL78Expressions())
-	    return LexRL78BitPositionLiteral(NumStart);
+    if (CurPtr[0] == '.' &&  MAI.hasRL78Expressions())
+      return LexRL78BitPositionLiteral(NumStart);
 
     // Otherwise requires at least one hex digit.
     if (CurPtr == NumStart)

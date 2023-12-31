@@ -833,7 +833,7 @@ public:
   ~RL78AsmParser() {}
 
   bool Warning(SMLoc L, const Twine &Msg, SMRange Range = None) override;
-  bool parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc);
+  bool parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc, AsmTypeInfo *TypeInfo) override;
 };
 
 } // end anonymous namespace
@@ -6440,9 +6440,9 @@ bool HLASMAsmParser::parseStatement(ParseStatementInfo &Info,
 bool RL78AsmParser::parseStatement(ParseStatementInfo &Info,
                                    MCAsmParserSemaCallback *SI) {
   // Eat initial spaces and comments.
-  while (Lexer.is(AsmToken::Space))
+  while (getLexer().is(AsmToken::Space))
     Lex();
-  if (Lexer.is(AsmToken::EndOfStatement)) {
+  if (getLexer().is(AsmToken::EndOfStatement)) {
     // If this is a line comment we can drop it safely.
     if (getTok().getString().empty() || getTok().getString().front() == '\r' ||
         getTok().getString().front() == '\n')
@@ -6450,7 +6450,7 @@ bool RL78AsmParser::parseStatement(ParseStatementInfo &Info,
     Lex();
     return false;
   }
-  StringRef NextTok = Lexer.peekTok().getString();
+  StringRef NextTok = getLexer().peekTok().getString();
   AsmToken ID = getTok();
   SMLoc IDLoc = ID.getLoc();
   if (ID.getKind() == AsmToken::TokenKind::Dollar &&
@@ -6692,9 +6692,9 @@ bool RL78AsmParser::parseMacroArguments(const MCAsmMacro *M,
   // - macros defined with parameters accept at most that many of them
   for (unsigned Parameter = 0; !NParameters || Parameter < NParameters;
        ++Parameter) {
-    SMLoc IDLoc = Lexer.getLoc();
+    // SMLoc IDLoc = Lexer.getLoc();
     MCAsmMacroParameter FA;
-    SMLoc StrLoc = Lexer.getLoc();
+    // SMLoc StrLoc = Lexer.getLoc();
     SMLoc EndLoc;
     if (parseMacroArgument(FA.Value, false))
       return true;
@@ -7041,7 +7041,7 @@ bool RL78AsmParser::Warning(SMLoc L, const Twine &Msg, SMRange Range) {
 }
 
 /// Parse a primary expression and return it.
-bool RL78AsmParser::parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc) {
+bool RL78AsmParser::parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc, AsmTypeInfo *TypeInfo) {
   SMLoc FirstTokenLoc = getLexer().getLoc();
   AsmToken::TokenKind FirstTokenKind = Lexer.getKind();
   StringRef Token = Lexer.getTok().getString();
@@ -7335,8 +7335,9 @@ bool parseAssignmentExpression(StringRef Name, bool allow_redef,
 MCAsmParser *llvm::createMCAsmParser(SourceMgr &SM, MCContext &C,
                                      MCStreamer &Out, const MCAsmInfo &MAI,
                                      unsigned CB) {
-  if (C.getTargetTriple().isSystemZ() && C.getTargetTriple().isOSzOS())
+  if (C.getTargetTriple().isRL78())
+    return new RL78AsmParser(SM, C, Out, MAI, CB);
+  else if (C.getTargetTriple().isSystemZ() && C.getTargetTriple().isOSzOS())
     return new HLASMAsmParser(SM, C, Out, MAI, CB);
-
   return new AsmParser(SM, C, Out, MAI, CB);
 }

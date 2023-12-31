@@ -2907,26 +2907,26 @@ Instruction *InstCombinerImpl::visitAddrSpaceCast(AddrSpaceCastInst &CI) {
   PointerType *SrcTy = cast<PointerType>(Src->getType()->getScalarType());
   PointerType *DestTy = cast<PointerType>(CI.getType()->getScalarType());
 
-  if (!SrcTy->hasSameElementTypeAs(DestTy)) {
+  Type *DestElemTy = DestTy->getPointerElementType();
+  Type *SrcElemTy = SrcTy->getPointerElementType();
+  if (SrcElemTy != DestElemTy) {
     Type *MidTy =
         PointerType::getWithSamePointeeType(DestTy, SrcTy->getAddressSpace());
-    // Handle vectors of pointers.
-    if (VectorType *VT = dyn_cast<VectorType>(CI.getType()))
+    if (VectorType *VT = dyn_cast<VectorType>(CI.getType())) {
+      // Handle vectors of pointers.
       MidTy = VectorType::get(MidTy, VT->getElementCount());
-
-    Value *NewBitCast = Builder.CreateBitCast(Src, MidTy);
-    return new AddrSpaceCastInst(NewBitCast, CI.getType());
+    }
     // For RL78 bitcasting a near data pointer to a near function pointer
     // is not allowed. We change the order
-    // if (DestElemTy->isFunctionTy() != SrcElemTy->isFunctionTy()) {
-    //   PointerType *SrcDestASTy =
-    //       PointerType::get(SrcElemTy, DestTy->getAddressSpace());
-    //   Value *AddrSpaceCast = Builder.CreateAddrSpaceCast(Src, SrcDestASTy);
-    //   return new BitCastInst(AddrSpaceCast, CI.getType());
-    // } else {
-    //   Value *NewBitCast = Builder.CreateBitCast(Src, MidTy);
-    //   return new AddrSpaceCastInst(NewBitCast, CI.getType());
-    // }    
+    if (DestElemTy->isFunctionTy() != SrcElemTy->isFunctionTy()) {
+      PointerType *SrcDestASTy =
+          PointerType::get(SrcElemTy, DestTy->getAddressSpace());
+      Value *AddrSpaceCast = Builder.CreateAddrSpaceCast(Src, SrcDestASTy);
+      return new BitCastInst(AddrSpaceCast, CI.getType());
+    } else {
+      Value *NewBitCast = Builder.CreateBitCast(Src, MidTy);
+      return new AddrSpaceCastInst(NewBitCast, CI.getType());
+    }
   }
 
   return commonPointerCastTransforms(CI);

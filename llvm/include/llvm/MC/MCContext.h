@@ -238,7 +238,7 @@ private:
   /// differences between temporary and non-temporary labels (primarily on
   /// Darwin).
   bool AllowTemporaryLabels = true;
-  bool UseNamesOnTempLabels = false;
+  bool UseNamesOnTempLabels = true;
 
   /// The Compile Unit ID that we are currently processing.
   unsigned DwarfCompileUnitID = 0;

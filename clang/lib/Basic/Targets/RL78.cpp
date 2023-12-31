@@ -119,7 +119,10 @@ RL78TargetInfo::RL78TargetInfo(const llvm::Triple &Triple,
   if (farCodeModel) {
     resetDataLayout(
         "e"            // little endian
-        "-m:o"         // Mach-O mangling: Private symbols get L prefix. Other
+        // 2023/04/07 KS Modified for RL78
+        // "-m:o"         // Mach-O mangling: Private symbols get L prefix. Other
+        //                // symbols get a _ prefix.
+        "-m:e"         // Mach-ELF mangling: Private symbols get L prefix. Other
                        // symbols get a _ prefix.
         "-p0:16:16:16" // default: 16 bit width, 16 bit aligned
         "-p1:16:16:16" // near pointers: 16 bit width, 16 bit aligned
@@ -133,7 +136,11 @@ RL78TargetInfo::RL78TargetInfo(const llvm::Triple &Triple,
   } else {
     resetDataLayout(
         "e"            // little endian
-        "-m:o"         // Mach-O mangling: Private symbols get L prefix. Other
+        // 2023/04/07 KS Modified for RL78
+        // "-m:o"         // Mach-O mangling: Private symbols get L prefix.
+        // Other
+        //                // symbols get a _ prefix.
+        "-m:e"         // Mach-ELF mangling: Private symbols get L prefix. Other
                        // symbols get a _ prefix.
         "-p0:16:16:16" // default: 16 bit width, 16 bit aligned
         "-p1:16:16:16" // near pointers: 16 bit width, 16 bit aligned

@@ -459,9 +459,10 @@ static SectionKind getELFKindForNamedSection(StringRef Name, SectionKind K) {
       Name == ".sbss" ||
       Name.startswith(".sbss.") ||
       Name.startswith(".gnu.linkonce.sb.") ||
+// 2023/04/07 KS Added for RL78
       Name.startswith(".llvm.linkonce.sb.") ||
-	    Name.startswith(".bssf") ||
-	    Name.startswith(".bssf."))
+      Name.startswith(".bssf") ||
+      Name.startswith(".bssf."))
     return SectionKind::getBSS();
 
   if (Name == ".tdata" ||
@@ -503,17 +504,18 @@ static unsigned getELFSectionType(StringRef Name, SectionKind K) {
   if (hasPrefix(Name, ".llvm.offloading"))
     return ELF::SHT_LLVM_OFFLOADING;
 
+// 2023/04/07 KS Added for RL78
   if (Name.startswith(".bss_AT"))
-	  return ELF::SHT_NOBITS;
+    return ELF::SHT_NOBITS;
 
   if (Name.startswith(".bssf_AT"))
-	  return ELF::SHT_NOBITS;
+    return ELF::SHT_NOBITS;
 
   if (Name.startswith(".bssf"))
-	  return ELF::SHT_NOBITS;
+    return ELF::SHT_NOBITS;
 
   if (Name.startswith(".sbss"))
-	  return ELF::SHT_NOBITS;
+    return ELF::SHT_NOBITS;
 
   if (K.isBSS() || K.isThreadBSS())
     return ELF::SHT_NOBITS;
@@ -607,8 +609,6 @@ static unsigned getEntrySizeForKind(SectionKind Kind) {
   }
 }
 
-
-// 2023/04/03 KS Added for RL78
 /// Return the section prefix name used by options FunctionsSections and
 /// DataSections.
 static StringRef getSectionPrefixForGlobal(SectionKind Kind) {
@@ -624,8 +624,9 @@ static StringRef getSectionPrefixForGlobal(SectionKind Kind) {
     return ".tbss";
   if (Kind.isData())
     return ".data";
-  assert(Kind.isReadOnlyWithRel() && "Unknown section kind");
+  if (Kind.isReadOnlyWithRel())
   return ".data.rel.ro";
+  llvm_unreachable("Unknown section kind");
 }
 
 std::string TargetLoweringObjectFileELF::getSectionPrefixForGlobal(
@@ -794,6 +795,11 @@ static MCSection *selectExplicitSectionGlobal(
   StringRef Group = "";
   bool IsComdat = false;
   unsigned Flags = getELFSectionFlags(Kind);
+  // 2023/04/07 KS Added for RL78
+  if (TM.getTargetTriple().getArch() == Triple::rl78 && GV &&
+      GV->getAttributes().hasAttribute("abs_addr"))
+    Flags |= ELF::SHF_RENESAS_ABS;
+
   if (const Comdat *C = getELFComdat(GO)) {
     Group = C->getName();
     IsComdat = C->getSelectionKind() == Comdat::Any;
@@ -857,6 +863,26 @@ static MCSectionELF *selectELFSectionForGlobal(
   // Get the section entry size based on the kind.
   unsigned EntrySize = getEntrySizeForKind(Kind);
 
+#if 0
+  // 2023/04/07 KS Added for RL78
+  SmallString<128> Name;
+  if (Kind.isMergeableCString()) {
+    // We also need alignment here.
+    // FIXME: this is getting the alignment of the character, not the
+    // alignment of the global!
+    unsigned Align = GO->getParent()->getDataLayout().getPreferredAlign(
+        cast<GlobalVariable>(GO));
+
+    std::string SizeSpec = SectionPrefixForGlobal + ".str" + utostr(EntrySize) + ".";
+    Name = SizeSpec + utostr(Align);
+  } else if (Kind.isMergeableConst()) {
+    Name = SectionPrefixForGlobal + ".cst";
+    Name += utostr(EntrySize);
+  } else {
+    Name = SectionPrefixForGlobal;
+  }
+#endif
+
   bool UniqueSectionName = false;
   unsigned UniqueID = MCContext::GenericSectionID;
   if (EmitUniqueSection) {
@@ -898,6 +924,14 @@ static MCSection *selectELFSectionForGlobal(
     }
   }
 
+#if 0
+// 2023/04/07 KS Added for RL78
+  std::string SectionPrefixForGlobal = std::string(getSectionPrefixForGlobal(Kind,GO));
+  MCSectionELF *Section = selectELFSectionForGlobal(
+      getContext(), GO, Kind, getMangler(), TM, SectionPrefixForGlobal,
+      EmitUniqueSection, Flags, &NextUniqueID, AssociatedSymbol);
+  assert(Section->getAssociatedSymbol() == AssociatedSymbol);
+#endif
   MCSectionELF *Section = selectELFSectionForGlobal(
       Ctx, GO, Kind, Mang, TM, EmitUniqueSection, Flags,
       NextUniqueID, LinkedToSym);
@@ -949,6 +983,14 @@ MCSection *TargetLoweringObjectFileELF::getSectionForJumpTable(
   if (!EmitUniqueSection)
     return ReadOnlySection;
 
+#if 0
+// 2023/04/07 KS Added for RL78
+  std::string SectionPrefixForGlobal = getSectionPrefixForGlobal(SectionKind::getReadOnly(),nullptr);
+  return selectELFSectionForGlobal(
+      getContext(), &F, SectionKind::getReadOnly(), getMangler(), TM,
+      SectionPrefixForGlobal, EmitUniqueSection, ELF::SHF_ALLOC, &NextUniqueID,
+      /* AssociatedSymbol */ nullptr);
+#endif
   return selectELFSectionForGlobal(getContext(), &F, SectionKind::getReadOnly(),
                                    getMangler(), TM, EmitUniqueSection,
                                    ELF::SHF_ALLOC, &NextUniqueID,

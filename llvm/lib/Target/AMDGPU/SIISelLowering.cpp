@@ -2467,8 +2467,11 @@ SDValue SITargetLowering::LowerFormalArguments(
             static_cast<const GCNTargetMachine &>(getTargetMachine());
         if (!TM.isNoopAddrSpaceCast(AMDGPUAS::CONSTANT_ADDRESS,
                                     Arg.Flags.getPointerAddrSpace())) {
+// 2023/12/31 KS Added for RL78
+          // Ptr = DAG.getAddrSpaceCast(DL, VT, Ptr, AMDGPUAS::CONSTANT_ADDRESS,
+          //                            Arg.Flags.getPointerAddrSpace());
           Ptr = DAG.getAddrSpaceCast(DL, VT, Ptr, AMDGPUAS::CONSTANT_ADDRESS,
-                                     Arg.Flags.getPointerAddrSpace());
+                                     Arg.Flags.getPointerAddrSpace(), false);
         }
 
         InVals.push_back(Ptr);

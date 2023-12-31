@@ -112,6 +112,7 @@ static cl::opt<bool>
                     cl::desc("DAG combiner may split indexing from loads"));
 
 static cl::opt<bool>
+// 2023/04/07 KS Modified for RL78
     EnableStoreMerging("combiner-store-merging", cl::Hidden, cl::init(false),//TODO investigate why does it handle consecutive stores badly when using negative stack offsets
                        cl::desc("DAG combiner enable merging multiple stores "
                                 "into a wider store"));

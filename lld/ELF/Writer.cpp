@@ -2286,8 +2286,6 @@ void Writer<ELFT>::addStartStopSymbols(OutputSection &osec) {
   StringRef s = osec.name;
   if (!isValidCIdentifier(s) && config->emachine != llvm::ELF::EM_RL78)
     return;
-  if (!isValidCIdentifier(s))
-    return;
   addOptionalRegular(saver().save("__start_" + s), &osec, 0,
                      config->zStartStopVisibility);
   addOptionalRegular(saver().save("__stop_" + s), &osec, -1,

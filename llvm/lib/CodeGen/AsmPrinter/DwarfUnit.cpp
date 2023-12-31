@@ -781,7 +781,7 @@ void DwarfUnit::constructTypeDIE(DIE &Buffer, const DIDerivedType *DTy) {
   }
 
   // Add size if non-zero (derived types might be zero-sized.)
-  // RL78
+  // 2023/04/07 KS Modified for RL78
   if (Size /*&& Tag != dwarf::DW_TAG_pointer_type*/
            && Tag != dwarf::DW_TAG_ptr_to_member_type
            && Tag != dwarf::DW_TAG_reference_type

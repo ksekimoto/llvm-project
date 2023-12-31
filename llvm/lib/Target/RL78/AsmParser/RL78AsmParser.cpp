@@ -173,9 +173,11 @@ private:
   std::string ReplaceMacroLocalSymbols(
       std::string MacroBody, StringMap<std::string> &MacroLocalSymbols,
       SmallVector<MacroLocalDefinitionRange, 10> &MacroLocalSymbolRanges);
+  #if 0
   bool SplitBitPosition(std::string *AddressSymbol, int64_t *AddressValue,
                         int64_t *BitPosition, bool *IsSymAddress,
                         std::string *ErrorMsg);
+  #endif
   bool parseDirectiveSet(StringRef Name);
   bool parseDirectiveEqu(StringRef Name);
   bool parseDirectiveVector(StringRef Name);
@@ -194,7 +196,7 @@ public:
       : MCTargetAsmParser(Options, sti, MII), Parser(parser) {
     // Initialize the set of available features.
     setAvailableFeatures(ComputeAvailableFeatures(getSTI().getFeatureBits()));
-	InitializeRelocationAttributeMap();
+    InitializeRelocationAttributeMap();
   }
 
   ~RL78AsmParser() override;
@@ -1245,14 +1247,14 @@ bool RL78AsmParser::tryParseBCCorSCC(OperandVector &Operands, StringRef Name,
   StringRef mnemonic;
   StringRef operand;
 
-  if (Name.substr(0, 1).compare("b") == 0 &&
-      ccTono.find(std::string(Name.substr(1, Name.size()))) != ccTono.end()) {
+  if (Name.substr(0, 1).compare_insensitive("b") == 0 &&
+      ccTono.find(Name.substr(1, Name.size()).str()) != ccTono.end()) {
 
     mnemonic = Name.substr(0, 1);
     operand = Name.substr(1, Name.size());
 
-  } else if (Name.substr(0, 2).compare("sk") == 0 &&
-             ccTono.find(std::string(Name.substr(2, Name.size()))) != ccTono.end()) {
+  } else if (Name.substr(0, 2).compare_insensitive("sk") == 0 &&
+             ccTono.find(Name.substr(2, Name.size()).str()) != ccTono.end()) {
 
     mnemonic = Name.substr(0, 2);
     operand = Name.substr(2, Name.size());
@@ -1266,7 +1268,7 @@ bool RL78AsmParser::tryParseBCCorSCC(OperandVector &Operands, StringRef Name,
     SMLoc S = Parser.getTok().getLoc();
     SMLoc E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
     const MCExpr *EVal;
-    EVal = MCConstantExpr::create(ccTono[std::string(operand)], getContext());
+    EVal = MCConstantExpr::create(ccTono[operand.str()], getContext());
     Operands.push_back(RL78Operand::CreateCC(EVal, S, E));
     return true;
   }
@@ -1467,13 +1469,13 @@ bool RL78AsmParser::EmitSectionDirective(
     const RelocationAttributeDefault* RelocationAttributeDesc) {
   // Parse and handle absolute section address.
   std::string NewSectionName = SectionName.str();
-  if (RelocationAttribute.compare("AT") == 0 ||
-      RelocationAttribute.compare("DATA_AT") == 0 ||
-      RelocationAttribute.compare("BSS_AT") == 0 ||
-      RelocationAttribute.compare("BIT_AT") == 0) {
+  if (RelocationAttribute.compare_insensitive("AT") == 0 ||
+      RelocationAttribute.compare_insensitive("DATA_AT") == 0 ||
+      RelocationAttribute.compare_insensitive("BSS_AT") == 0 ||
+      RelocationAttribute.compare_insensitive("BIT_AT") == 0) {
 
     // TODO check for overlaps at compile time already?
-    if (ParseSectionAddress(std::string(SectionName), NewSectionName))
+    if (ParseSectionAddress(SectionName.str(), NewSectionName))
       return true;
   }
 
@@ -1486,12 +1488,12 @@ bool RL78AsmParser::EmitSectionDirective(
   // section is only generated from the absolute address.
   AsmToken NextToken = getLexer().peekTok();
   if (NextToken.is(AsmToken::Identifier) &&
-      (NextToken.getString().compare(".ORG") == 0)) {
+      (NextToken.getString().compare_insensitive(".ORG") == 0)) {
     // Eat EndOfStatement.
     Lex();
     // Eat .ORG.
     Lex();
-    if (ParseSectionAddress(std::string(SectionName), NewSectionName))
+    if (ParseSectionAddress(SectionName.str(), NewSectionName))
       return true;
     Flags = Flags | ELF::SHF_RENESAS_ABS;
   }
@@ -1499,10 +1501,10 @@ bool RL78AsmParser::EmitSectionDirective(
   SwitchToSection(NewSectionName, RelocationAttributeDesc->Type, Flags);
 
   // Apply the default section align
-  if (RelocationAttribute.compare("TEXT") == 0 ||
-      RelocationAttribute.compare("TEXT") == 0 ||
-      RelocationAttribute.compare("TEXTF") == 0 ||
-      RelocationAttribute.compare("TEXTF_UNIT64KP") == 0) {
+  if (RelocationAttribute.compare_insensitive("TEXT") == 0 ||
+      RelocationAttribute.compare_insensitive("TEXT") == 0 ||
+      RelocationAttribute.compare_insensitive("TEXTF") == 0 ||
+      RelocationAttribute.compare_insensitive("TEXTF_UNIT64KP") == 0) {
     getStreamer().emitCodeAlignment(
         RelocationAttributeDesc->DefaultAlign, &getSTI(), 0);
   } else {
@@ -1521,14 +1523,14 @@ bool RL78AsmParser::LookupRelocationAttribute(
   if (RelocationAttributeMatch == RelocationAttributeMap.end())
     return TokError("unexpected relocation-attribute in directive");
 
-  if (Attribute.compare("OPT_BYTE") == 0 && SectionName.compare("") != 0 && SectionName.compare(".option_byte") != 0 ||
-      Attribute.compare("SECUR_ID") == 0 && SectionName.compare("") != 0 && SectionName.compare(".security_id") != 0)
+  if (((Attribute.compare_insensitive("OPT_BYTE") == 0) && (SectionName.compare_insensitive("") != 0) && (SectionName.compare_insensitive(".option_byte") != 0)) ||
+      ((Attribute.compare_insensitive("SECUR_ID") == 0) && (SectionName.compare_insensitive("") != 0) && (SectionName.compare_insensitive(".security_id") != 0)))
 	return TokError("special section name cannot be changed");
 
   // Not exactly an appropriate place, but check for section name correctness
   // too.
-  if (SectionName.compare("") != 0 &&
-      !std::regex_match(std::string(SectionName.str()), std::regex("[A-Za-z0-9\._@]+")))
+  if (SectionName.compare_insensitive("") != 0 &&
+      !std::regex_match(SectionName.str(), std::regex("[A-Za-z0-9\._@]+")))
     return TokError("invalid characters in section name");
 
   *RelocationAttributeDesc = &RelocationAttributeMatch->second;
@@ -1563,11 +1565,11 @@ bool RL78AsmParser::ParseSectionArguments(SMLoc loc) {
 bool RL78AsmParser::parseDirectiveSeg(StringRef Name, StringRef Type) {
 
   StringRef RelocationAttribute;
-  if (Type.compare(".CSEG") == 0)
+  if (Type.compare_insensitive(".CSEG") == 0)
     RelocationAttribute = "TEXT";
-  else if (Type.compare(".DSEG") == 0)
+  else if (Type.compare_insensitive(".DSEG") == 0)
     RelocationAttribute = "DATA";
-  else if (Type.compare(".BSEG") == 0)
+  else if (Type.compare_insensitive(".BSEG") == 0)
     RelocationAttribute = "SBSS_BIT";
   else
     return TokError("unexpected directive kind");
@@ -1580,7 +1582,7 @@ bool RL78AsmParser::parseDirectiveSeg(StringRef Name, StringRef Type) {
   RelocationAttributeDefault *RelocationAttributeDesc;
   if (LookupRelocationAttribute(Name, RelocationAttribute, &RelocationAttributeDesc))
     return true;
-  return EmitSectionDirective(Name.compare("") == 0
+  return EmitSectionDirective(Name.compare_insensitive("") == 0
                                   ? RelocationAttributeDesc->DefaultSectionName
                                   : Name,
                               RelocationAttribute, RelocationAttributeDesc);
@@ -1679,7 +1681,7 @@ bool RL78AsmParser::parseDSDirective() {
 }
 
 bool RL78AsmParser::parseDirectiveAlign() {
-  SMLoc AlignmentLoc = getLexer().getLoc();
+  // SMLoc AlignmentLoc = getLexer().getLoc();
   int64_t Alignment;
   SMLoc MaxBytesLoc;
   bool HasFillExpr = false;
@@ -2000,6 +2002,7 @@ bool RL78AsmParser::parseDirectiveSet(StringRef Name) {
   return false;
 }
 
+#if 0
 bool RL78AsmParser::SplitBitPosition(std::string *AddressSymbol,
                                      int64_t *AddressValue,
                                      int64_t *BitPosition, bool *IsSymAddress,
@@ -2016,7 +2019,7 @@ bool RL78AsmParser::SplitBitPosition(std::string *AddressSymbol,
     ss >> *AddressValue;
   } else {
     *IsSymAddress = true;
-    *AddressSymbol = std::string(Parts.first);
+    *AddressSymbol = Parts.first.str();
   }
 
   // Handle the bit part
@@ -2046,6 +2049,7 @@ bool RL78AsmParser::SplitBitPosition(std::string *AddressSymbol,
   }
   return false;
 }
+#endif
 
 bool RL78AsmParser::parseDirectiveEqu(StringRef Name) {
   // Symbols that have already been defined by using .EQU cannot be redefined.
@@ -2126,7 +2130,7 @@ bool RL78AsmParser::parseDirectiveVector(StringRef Name) {
 
   MCSymbol *Sym = Parser.getContext().lookupSymbol(Name);
 
-  SMLoc EqualLoc = Parser.getTok().getLoc();
+  // SMLoc EqualLoc = Parser.getTok().getLoc();
   // Eat the .VECTOR
   Lex();
 
@@ -2168,7 +2172,7 @@ bool RL78AsmParser::parseDirectiveLine() {
   AsmToken Token = getLexer().getTok();
 
   StringRef FileName;
-  int64_t LineNo;
+  // int64_t LineNo;
 
   // Parse optional filename
   if (Token.is(AsmToken::String)) {
@@ -2185,7 +2189,7 @@ bool RL78AsmParser::parseDirectiveLine() {
   if (getLexer().getTok().isNot(AsmToken::Integer))
     return TokError("unexpected token in directive");
 
-  LineNo = getLexer().getTok().getIntVal();
+  int64_t LineNo = getLexer().getTok().getIntVal();
   Lex();
 
   // TODO: It appears that the CC-RL assembler ignores this directive, contrary
@@ -2201,7 +2205,7 @@ bool RL78AsmParser::parseDirectiveLineTopEnd() {
   // After syntax checking we ignore this directive
   // Note that we don't check for matching TOP/END pairs.
   if (Token.isNot(AsmToken::Identifier) ||
-      Token.getString().compare("inline_asm") != 0)
+      Token.getString().compare_insensitive("inline_asm") != 0)
     return TokError("unexpected token in directive");
   Lex();
   return false;
@@ -2241,65 +2245,65 @@ bool RL78AsmParser::ParseDirective(AsmToken DirectiveID) {
 
   SMLoc Loc = getLexer().getLoc();
 
-  if (DirectiveID.getString().compare(".PUBLIC") == 0 ||
-      DirectiveID.getString().compare(".EXTERN") == 0) {
+  if (DirectiveID.getString().compare_insensitive(".PUBLIC") == 0 ||
+      DirectiveID.getString().compare_insensitive(".EXTERN") == 0) {
     // TODO: add error handling
     return parseDirectiveSymbolAttribute(MCSA_Global);
-  } else if (DirectiveID.getString().compare(".SECTION") == 0) {
+  } else if (DirectiveID.getString().compare_insensitive(".SECTION") == 0) {
     return ParseSectionArguments(Loc);
-  } else if (DirectiveID.getString().compare(".ORG") == 0) {
+  } else if (DirectiveID.getString().compare_insensitive(".ORG") == 0) {
     return ParseDirectiveOrg();
-  } else if (DirectiveID.getString().compare(".OFFSET") == 0) {
+  } else if (DirectiveID.getString().compare_insensitive(".OFFSET") == 0) {
     return ParseDirectiveOffset();
-  } else if (DirectiveID.getString().compare(".DB") == 0) {
+  } else if (DirectiveID.getString().compare_insensitive(".DB") == 0) {
     return parseDirectiveValue(".DB", 1);
-  } else if (DirectiveID.getString().compare(".DB2") == 0) {
+  } else if (DirectiveID.getString().compare_insensitive(".DB2") == 0) {
     return parseDirectiveValue(".DB2", 2);
-  } else if (DirectiveID.getString().compare(".DB4") == 0) {
+  } else if (DirectiveID.getString().compare_insensitive(".DB4") == 0) {
     return parseDirectiveValue(".DB4", 4);
-  } else if (DirectiveID.getString().compare(".DB8") == 0) {
+  } else if (DirectiveID.getString().compare_insensitive(".DB8") == 0) {
     return parseDirectiveValue(".DB8", 8);
-  } else if (DirectiveID.getString().compare(".DS") == 0) {
+  } else if (DirectiveID.getString().compare_insensitive(".DS") == 0) {
     return parseDSDirective();
-  } else if (DirectiveID.getString().compare(".ALIGN") == 0) {
+  } else if (DirectiveID.getString().compare_insensitive(".ALIGN") == 0) {
     return parseDirectiveAlign();
   }  
-  /*else if (DirectiveID.getString().compare(".DBIT") == 0) {
+  /*else if (DirectiveID.getString().compare_insensitive(".DBIT") == 0) {
 	//TODO error check for current section = bit section
 	getStreamer().EmitIntValue(0, 1);
     return false;
   }*/
-  else if (DirectiveID.getString().compare(".LINE") == 0) {
+  else if (DirectiveID.getString().compare_insensitive(".LINE") == 0) {
     return parseDirectiveLine();
-  } else if (DirectiveID.getString().lower().compare("._line_top") == 0 ||
-             DirectiveID.getString().lower().compare("._line_end") == 0) {
+  } else if (DirectiveID.getString().compare_insensitive("._line_top") == 0 ||
+             DirectiveID.getString().compare_insensitive("._line_end") == 0) {
     return parseDirectiveLineTopEnd();
-  } else if (DirectiveID.getString().compare(".STACK") == 0) {
+  } else if (DirectiveID.getString().compare_insensitive(".STACK") == 0) {
     return parseDirectiveStack();
-  } else if (DirectiveID.getString().compare(".TYPE") == 0) {
+  } else if (DirectiveID.getString().compare_insensitive(".TYPE") == 0) {
     return parseDirectiveType();
   } else if (DirectiveID.getKind() == AsmToken::Identifier) {
     StringRef Tok = getLexer().getTok().getString();
-    if (Tok.compare(".MACRO") == 0)
+    if (Tok.compare_insensitive(".MACRO") == 0)
       return parseDirectiveMacro(DirectiveID.getString());
-	if (Tok.compare(".SET") == 0)
+	if (Tok.compare_insensitive(".SET") == 0)
       return parseDirectiveSet(DirectiveID.getString());
-	if (Tok.compare(".EQU") == 0)
+	if (Tok.compare_insensitive(".EQU") == 0)
       return parseDirectiveEqu(DirectiveID.getString());
 
-    if (Tok.compare(".CSEG") == 0 || Tok.compare(".BSEG") == 0 ||
-        Tok.compare(".DSEG") == 0) {
+    if (Tok.compare_insensitive(".CSEG") == 0 || Tok.compare_insensitive(".BSEG") == 0 ||
+        Tok.compare_insensitive(".DSEG") == 0) {
       Lex();
       return parseDirectiveSeg(DirectiveID.getString(), Tok);
     }
 
     // section name is optional
-    if (DirectiveID.getString().compare(".CSEG") == 0 ||
-        DirectiveID.getString().compare(".DSEG") == 0 ||
-        DirectiveID.getString().compare(".BSEG") == 0)
+    if (DirectiveID.getString().compare_insensitive(".CSEG") == 0 ||
+        DirectiveID.getString().compare_insensitive(".DSEG") == 0 ||
+        DirectiveID.getString().compare_insensitive(".BSEG") == 0)
       return parseDirectiveSeg("", DirectiveID.getString());
 
-    if (Tok.compare(".VECTOR") == 0)
+    if (Tok.compare_insensitive(".VECTOR") == 0)
       return parseDirectiveVector(DirectiveID.getString());
 
   }
@@ -2311,14 +2315,14 @@ bool RL78AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
 
   // First verify if b_cc or s_cc.
   // If not, single mnemonic - push operand.
-  if (Name.compare("sel") == 0 && getSTI().getCPU() == "RL78_S1") {
+  if (Name.compare_insensitive("sel") == 0 && getSTI().getCPU() == "RL78_S1") {
 
     SMLoc Loc = getLexer().getLoc();
     return Error(Loc, "Instruction not defined for S1 core type");
   }
-  if ((Name.compare("mulhu") == 0 || Name.compare("mulh") == 0 ||
-       Name.compare("divhu") == 0 || Name.compare("divwu") == 0 ||
-       Name.compare("machu") == 0 || Name.compare("mach") == 0) &&
+  if ((Name.compare_insensitive("mulhu") == 0 || Name.compare_insensitive("mulh") == 0 ||
+       Name.compare_insensitive("divhu") == 0 || Name.compare_insensitive("divwu") == 0 ||
+       Name.compare_insensitive("machu") == 0 || Name.compare_insensitive("mach") == 0) &&
       (getSTI().getCPU() == "RL78_S1" || getSTI().getCPU() == "RL78_S2")) {
 
     SMLoc Loc = getLexer().getLoc();
@@ -2368,7 +2372,7 @@ static OperandMatchResultTy CheckAddressValueRange(StringRef Mnemonic,
                                                    MCContext &Context, SMLoc S,
                                                    SMLoc E) {
   const MCExpr *EVal = MCConstantExpr::create(AddressValue, Context);
-  if (Mnemonic.compare("movw") != 0 && AddressValue > 0xfff1f &&
+  if (Mnemonic.compare_insensitive("movw") != 0 && AddressValue > 0xfff1f &&
       AddressValue <= 0xfffff)
     Operands.push_back(RL78Operand::CreateSfr(EVal, S, E));
   else if (AddressValue > 0xfff1f && AddressValue <= 0xfffff &&
@@ -2388,7 +2392,7 @@ StringRef StripTempSymbolPrefix(StringRef Symbol) {
   size_t Start = Symbol.find(Guard) + Guard.size();
   size_t End = Symbol.rfind(Guard);
   if (Start != StringRef::npos && End != StringRef::npos && Start != End) {
-    StringRef Temp = Symbol.substr(Start, End - Start);
+    // StringRef Temp = Symbol.substr(Start, End - Start);
     return Symbol.substr(Start, End - Start);
   }
 
@@ -2399,20 +2403,20 @@ OperandMatchResultTy
 RL78AsmParser::parseDotIncludingOperand(OperandVector &Operands,
                                         StringRef Mnemonic) {
 
-  if (Mnemonic.compare("mov1") != 0 && Mnemonic.compare("and1") != 0 &&
-      Mnemonic.compare("or1") != 0 && Mnemonic.compare("xor1") != 0 &&
-      Mnemonic.compare("set1") != 0 && Mnemonic.compare("clr1") != 0 &&
-      Mnemonic.compare("bt") != 0 && Mnemonic.compare("bf") != 0 &&
-      Mnemonic.compare("btclr") != 0)
+  if (Mnemonic.compare_insensitive("mov1") != 0 && Mnemonic.compare_insensitive("and1") != 0 &&
+      Mnemonic.compare_insensitive("or1") != 0 && Mnemonic.compare_insensitive("xor1") != 0 &&
+      Mnemonic.compare_insensitive("set1") != 0 && Mnemonic.compare_insensitive("clr1") != 0 &&
+      Mnemonic.compare_insensitive("bt") != 0 && Mnemonic.compare_insensitive("bf") != 0 &&
+      Mnemonic.compare_insensitive("btclr") != 0)
     return MatchOperand_NoMatch;
 
   SMLoc S = Parser.getTok().getLoc();
   SMLoc E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
   const AsmToken &Token = getLexer().getTok();
 
-  if (Token.is(AsmToken::Identifier) &&
-          ((Token.getString().compare_insensitive("cy") == 0) ||
-           (Token.getString().compare_insensitive("es") == 0)) ||
+  if ((Token.is(AsmToken::Identifier) &&
+     ((Token.getString().compare_insensitive("cy") == 0) ||
+      (Token.getString().compare_insensitive("es") == 0))) ||
       Token.is(AsmToken::LBrac))
     return MatchOperand_NoMatch;
 
@@ -2581,8 +2585,8 @@ RL78AsmParser::ParseShiftIntegerOperand(OperandVector &Operands,
   SMLoc S = Parser.getTok().getLoc();
   SMLoc E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
   const MCExpr *EVal;
-  if (Mnemonic.compare("shr") == 0 || Mnemonic.compare("shl") == 0 ||
-      Mnemonic.compare("sar") == 0) {
+  if (Mnemonic.compare_insensitive("shr") == 0 || Mnemonic.compare_insensitive("shl") == 0 ||
+      Mnemonic.compare_insensitive("sar") == 0) {
     std::unique_ptr<RL78Operand> Op;
     if (!getParser().parseExpression(EVal, E)) {
       Op = RL78Operand::CreateImm17(EVal, S, E);
@@ -2590,8 +2594,8 @@ RL78AsmParser::ParseShiftIntegerOperand(OperandVector &Operands,
       Operands.push_back(std::move(Op));
       ResTy = MatchOperand_Success;
     }
-  } else if (Mnemonic.compare("shrw") == 0 || Mnemonic.compare("shlw") == 0 ||
-             Mnemonic.compare("sarw") == 0 || Mnemonic.compare("shrw") == 0) {
+  } else if (Mnemonic.compare_insensitive("shrw") == 0 || Mnemonic.compare_insensitive("shlw") == 0 ||
+             Mnemonic.compare_insensitive("sarw") == 0 || Mnemonic.compare_insensitive("shrw") == 0) {
 
     std::unique_ptr<RL78Operand> Op;
     if (!getParser().parseExpression(EVal, E)) {
@@ -2600,9 +2604,9 @@ RL78AsmParser::ParseShiftIntegerOperand(OperandVector &Operands,
       Operands.push_back(std::move(Op));
       ResTy = MatchOperand_Success;
     }
-  } else if (Mnemonic.compare("ror") == 0 || Mnemonic.compare("rol") == 0 ||
-             Mnemonic.compare("rorc") == 0 || Mnemonic.compare("rolc") == 0 ||
-             Mnemonic.compare("rolwc") == 0 || Mnemonic.compare("rorc") == 0) {
+  } else if (Mnemonic.compare_insensitive("ror") == 0 || Mnemonic.compare_insensitive("rol") == 0 ||
+             Mnemonic.compare_insensitive("rorc") == 0 || Mnemonic.compare_insensitive("rolc") == 0 ||
+             Mnemonic.compare_insensitive("rolwc") == 0 || Mnemonic.compare_insensitive("rorc") == 0) {
 
     Operands.push_back(RL78Operand::CreateToken(Parser.getTok().getString(),
                                                 Parser.getTok().getLoc()));
@@ -2647,7 +2651,7 @@ OperandMatchResultTy RL78AsmParser::parseOperand(OperandVector &Operands,
           SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
       const MCExpr *EVal;
       Parser.parseExpression(EVal, E);
-      if (Mnemonic.compare("call") == 0)
+      if (Mnemonic.compare_insensitive("call") == 0)
         Operands.push_back(RL78Operand::CreatebrtargetRel16(EVal, S, E));
       else
         Operands.push_back(RL78Operand::CreatebrtargetRel16(EVal, S, E));
@@ -2673,7 +2677,7 @@ OperandMatchResultTy RL78AsmParser::parseOperand(OperandVector &Operands,
           SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
       const MCExpr *EVal;
       Parser.parseExpression(EVal, E);
-      if (Mnemonic.compare("br") == 0) {
+      if (Mnemonic.compare_insensitive("br") == 0) {
         Operands.push_back(RL78Operand::CreateToken(ExclFirst.getString(),
                                                     ExclFirst.getLoc()));
         Operands.push_back(RL78Operand::CreateToken(ExclSecond.getString(),
@@ -2701,8 +2705,8 @@ OperandMatchResultTy RL78AsmParser::parseOperand(OperandVector &Operands,
       if (dot != std::string::npos &&
           checkDot.substr(dot + 1, checkDot.size())
                   .find_first_not_of("0123456789") == std::string::npos &&
-          (Mnemonic.compare("set1") == 0 || Mnemonic.compare("clr1") == 0)) {
-        std::string before_dot = std::string(checkDot.substr(0, dot));
+          (Mnemonic.compare_insensitive("set1") == 0 || Mnemonic.compare_insensitive("clr1") == 0)) {
+        std::string before_dot = checkDot.substr(0, dot).str();
 
         int64_t value = getSymbolAliasValue(before_dot);
 
@@ -2728,7 +2732,7 @@ OperandMatchResultTy RL78AsmParser::parseOperand(OperandVector &Operands,
 
         Operands.push_back(RL78Operand::CreateAbs16(EVal, S, E));
 
-        std::string imm = std::string(checkDot.substr(dot + 1, checkDot.size()));
+        std::string imm = checkDot.substr(dot + 1, checkDot.size()).str();
         const MCExpr *EVal;
         EVal = MCConstantExpr::create(std::stoi(imm), getContext());
         SMLoc S = Parser.getTok().getLoc();
@@ -2774,7 +2778,7 @@ OperandMatchResultTy RL78AsmParser::parseOperand(OperandVector &Operands,
           SMLoc S = Parser.getTok().getLoc();
           SMLoc E =
               SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
-          std::string before_dot = std::string(checkDot.substr(0, dot));
+          std::string before_dot = checkDot.substr(0, dot).str();
 
           int64_t value = getSymbolAliasValue(before_dot);
 
@@ -2798,7 +2802,7 @@ OperandMatchResultTy RL78AsmParser::parseOperand(OperandVector &Operands,
 
           Operands.push_back(RL78Operand::CreateAbs16(EVal, S, E));
 
-          std::string imm = std::string(checkDot.substr(dot + 1, checkDot.size()));
+          std::string imm = checkDot.substr(dot + 1, checkDot.size()).str();
           EVal = MCConstantExpr::create(std::stoi(imm), getContext());
           S = Parser.getTok().getLoc();
           E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
@@ -2851,7 +2855,7 @@ OperandMatchResultTy RL78AsmParser::parseOperand(OperandVector &Operands,
         value = ((dyn_cast<MCConstantExpr>(Res))->getValue());
 
       LLVM_DEBUG(dbgs() << "Value is :" << value);
-      if (Mnemonic.compare("movw") != 0 && value >= 0xfff1f && value <= 0xfffff)
+      if (Mnemonic.compare_insensitive("movw") != 0 && value >= 0xfff1f && value <= 0xfffff)
         Operands.push_back(RL78Operand::CreateSfr(Res, S, E));
       else if (value >= 0xfff1f && value <= 0xfffff && value % 2 == 0)
         Operands.push_back(RL78Operand::CreateSfrp(Res, S, E));
@@ -2962,7 +2966,7 @@ RL78AsmParser::parseRegOffsetAddrOperand(OperandVector &Operands,
           value = ((dyn_cast<MCConstantExpr>(Res))->getValue());
 
         LLVM_DEBUG(dbgs() << "Value is :" << value);
-        if (Mnemonic.compare("movw") != 0 && value >= 0xfff1f &&
+        if (Mnemonic.compare_insensitive("movw") != 0 && value >= 0xfff1f &&
             value <= 0xfffff)
           Operands.push_back(RL78Operand::CreateSfr(Res, S, E));
         else if (value >= 0xfff1f && value <= 0xfffff && value % 2 == 0)
@@ -3031,10 +3035,10 @@ RL78AsmParser::parseEsRegRegAddrAndDotOperand(OperandVector &Operands,
       if (dot != std::string::npos &&
           name.substr(dot + 1, name.size()).find_first_not_of("0123456789") ==
               std::string::npos &&
-          (Mnemonic.compare("set1") == 0 || Mnemonic.compare("clr1") == 0)) {
+          (Mnemonic.compare_insensitive("set1") == 0 || Mnemonic.compare_insensitive("clr1") == 0)) {
 
-        std::string before_dot = std::string(name.substr(0, dot));
-        StringRef sfrx = before_dot;
+        std::string before_dot = name.substr(0, dot).str();
+        // StringRef sfrx = before_dot;
         int64_t value = getSymbolAliasValue(before_dot);
 
         if (value == 0) {
@@ -3059,7 +3063,7 @@ RL78AsmParser::parseEsRegRegAddrAndDotOperand(OperandVector &Operands,
         Operands.push_back(
             RL78Operand::CreateEsAddr16(RegESNo, RegESKind, Res, S, E));
 
-        std::string imm = std::string(name.substr(dot + 1, name.size()));
+        std::string imm = name.substr(dot + 1, name.size()).str();
         const MCExpr *EVal;
         EVal = MCConstantExpr::create(std::stoi(imm), getContext());
         SMLoc S = Parser.getTok().getLoc();
@@ -3187,7 +3191,7 @@ OperandMatchResultTy RL78AsmParser::RegBrackets(OperandVector &Operands,
   SMLoc S = Parser.getTok().getLoc();
   SMLoc E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
   const MCExpr *Res;
-  if (Mnemonic.compare("callt") == 0) {
+  if (Mnemonic.compare_insensitive("callt") == 0) {
 
     if (getLexer().is(AsmToken::LBrac)) {
       Parser.Lex(); // Eat the '[' token.

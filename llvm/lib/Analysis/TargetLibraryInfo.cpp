@@ -1030,11 +1030,13 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
             FTy.getParamType(1)->isPointerTy());
 
   case LibFunc_strcmp:
+// 2023/04/07 KS Modified for RL78
     return (NumParams == 2 && FTy.getReturnType()->isIntegerTy() &&
             FTy.getParamType(0)->isPointerTy() &&
             FTy.getParamType(0) == FTy.getParamType(1));
 
   case LibFunc_strncmp:
+// 2023/04/07 KS Modified for RL78
     return (NumParams == 3 && FTy.getReturnType()->isIntegerTy() &&
             FTy.getParamType(0)->isPointerTy() &&
             FTy.getParamType(0) == FTy.getParamType(1) &&
@@ -1116,6 +1118,7 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
     return NumParams == 1 && FTy.getParamType(0)->isIntegerTy(SizeTBits) &&
            FTy.getReturnType()->isPointerTy();
   case LibFunc_memcmp:
+// 2023/04/07 KS Modified for RL78
     return NumParams == 3 && FTy.getReturnType()->isIntegerTy() &&
            FTy.getParamType(0)->isPointerTy() &&
            FTy.getParamType(1)->isPointerTy() &&
@@ -1123,6 +1126,7 @@ bool TargetLibraryInfoImpl::isValidProtoForLibFunc(const FunctionType &FTy,
 
   case LibFunc_memchr:
   case LibFunc_memrchr:
+// 2023/04/07 KS Modified for RL78
     return (NumParams == 3 && FTy.getReturnType()->isPointerTy() &&
             FTy.getReturnType() == FTy.getParamType(0) &&
             FTy.getParamType(1)->isIntegerTy() &&
