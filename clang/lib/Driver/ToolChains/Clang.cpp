@@ -2173,8 +2173,6 @@ void Clang::AddRL78TargetArgs(const ArgList &Args,
   // becuase there's no 20 bit indirect jump just 16 bit.
   CmdArgs.push_back("-fno-jump-tables");
   //CmdArgs.push_back("-fno-use-init-array"); TODO: decide if we want ctors or init_array
-  CmdArgs.push_back("-mllvm");
-  CmdArgs.push_back("-combiner-store-merging");
 
   //TODO: quick hack, disable vla properly for RL78.
   //CmdArgs.push_back("-Werror=vla");
@@ -6964,8 +6962,12 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
     std::string FileName = Inputs[0].getFilename();
     SmallString<1024> FileNameBuf(FileName);
     llvm::sys::path::remove_filename(FileNameBuf);
-    if(FileNameBuf.compare("") != 0)
-        CmdArgs.push_back(Args.MakeArgString("-I" + FileNameBuf));
+    if (FileNameBuf.compare("") != 0)
+      CmdArgs.push_back(Args.MakeArgString("-I" + FileNameBuf));
+    if (Arg *A = Args.getLastArg(options::OPT_frenesas_extensions)) {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-rl78-ccrl-asm-syntax");
+    }
   } break;
   }
 

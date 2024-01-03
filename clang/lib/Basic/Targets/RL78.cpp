@@ -104,6 +104,7 @@ RL78TargetInfo::RL78TargetInfo(const llvm::Triple &Triple,
   }
   Char32Type = UnsignedLong;
   WCharType = UnsignedInt;
+  WIntType = UnsignedInt;
   FloatAlign = 16;
   DoubleAlign = 16;
   LongDoubleAlign = 16;

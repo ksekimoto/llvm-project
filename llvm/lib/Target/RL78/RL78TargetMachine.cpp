@@ -11,7 +11,9 @@
 
 #include "RL78TargetMachine.h"
 #include "RL78TargetObjectFile.h"
+#include "RL78TargetTransformInfo.h"
 #include "TargetInfo/RL78TargetInfo.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Transforms/Scalar.h"
@@ -110,6 +112,11 @@ RL78TargetMachine::getSubtargetImpl(const Function &F) const {
     I = std::make_unique<RL78Subtarget>(TargetTriple, CPU, FS, *this);
   }
   return I.get();
+}
+
+TargetTransformInfo
+RL78TargetMachine::getTargetTransformInfo(const Function &F) {
+  return TargetTransformInfo(RL78TTIImpl(this, F));
 }
 
 namespace {

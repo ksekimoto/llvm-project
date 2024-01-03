@@ -171,6 +171,7 @@ struct Configuration {
   bool nmagic;
   bool noDynamicLinker = false;
   bool noinhibitExec;
+  bool noinhibitAssert;
   bool nostdlib;
   bool oFormatBinary;
   bool omagic;
@@ -193,6 +194,7 @@ struct Configuration {
   bool thinLTOEmitImportsFiles;
   bool thinLTOIndexOnly;
   bool tocOptimize;
+  bool strideDSPMemoryArea;
   bool undefinedVersion;
   bool useAndroidRelrTags = false;
   bool warnBackrefs;

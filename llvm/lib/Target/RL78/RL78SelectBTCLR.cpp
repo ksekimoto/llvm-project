@@ -35,6 +35,11 @@ FunctionPass *llvm::createRL78SelectBTCLRPass() {
   return new RL78SelectBTCLRPass();
 }
 
+//TODO: rewrite this:
+// -check for volatile
+// -firstMI is the first instruction in TBB (MI.getOperand(0)
+// -BUildMI needs more params for BTCLR
+// -saddr, sfr
 bool RL78SelectBTCLRPass::runOnMachineFunction(MachineFunction &MF) {
   bool Changed = false;
   const TargetInstrInfo *TII = MF.getSubtarget<RL78Subtarget>().getInstrInfo();

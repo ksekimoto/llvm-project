@@ -1346,7 +1346,7 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
       (sym.hasNoType() || sym.isFunc() || sym.isSection()) &&
       (sym.getOutputSection() &&
        sym.getOutputSection()->flags & SHF_EXECINSTR) &&
-      !sym.isInPlt()) {
+      !sym.isInPlt() && (type == R_RL78_DIR16U)) {
     // dbgs() << sym.getName() << "\n";
     in.plt->addEntry(sym);
   }

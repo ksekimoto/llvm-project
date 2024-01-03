@@ -30,6 +30,7 @@ add_llvm_target(RL78CodeGen
   RL78InstructionSpecialization.cpp
   RL78ConstPropAndOpSwap.cpp
   RL78SelectionDAGTargetInfo.cpp
+  RL78TargetTransformInfo.cpp
   )
 
 add_subdirectory(TargetInfo)

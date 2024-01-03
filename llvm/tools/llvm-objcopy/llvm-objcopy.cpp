@@ -151,6 +151,8 @@ static Error executeObjcopyOnRawBinary(CopyConfig &Config, MemoryBuffer &In,
   // GNU objcopy. See https://bugs.llvm.org/show_bug.cgi?id=42171 for details.
   case FileFormat::Binary:
   case FileFormat::IHex:
+  case FileFormat::SRec:
+  case FileFormat::SymbolSRec:
   case FileFormat::Unspecified:
     if (Error E = Config.parseELFConfig())
       return E;

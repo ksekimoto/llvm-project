@@ -40,21 +40,10 @@ FunctionPass *llvm::createRL78BranchExpandPass() {
   return new RL78BranchExpandPass();
 }
 
-static unsigned calcBasicBlockSize(MachineBasicBlock &MBB) {
+static unsigned calcBasicBlockSize(MachineBasicBlock &MBB, const TargetInstrInfo *TII) {
   return std::accumulate(
-      MBB.begin(), MBB.end(), 0, [](unsigned Sum, const MachineInstr &MI) {
-        // Worst case scenario for BRCC is SK_cc + BR_rel16 =
-        // 2 + 3 = 5. And for BT/BF is MOV1 + 5 = 8.
-        return Sum + (((MI.getOpcode() == RL78::BTBF) ||
-                       (MI.getOpcode() == RL78::BTBF_mem))
-                          ? 8
-                          : ((MI.getOpcode() == RL78::BRCC)
-                                 ? 5
-                                 : ((MI.getOpcode() == RL78::BR)
-                                        ? 4
-                                        : (MI.isInlineAsm())
-                                              ? 128
-                                              : MI.getDesc().getSize())));
+      MBB.begin(), MBB.end(), 0, [TII](unsigned Sum, const MachineInstr &MI) {
+        return Sum + TII->getInstSizeInBytes(MI);
       });
 }
 
@@ -94,7 +83,8 @@ bool RL78BranchExpandPass::processBranch(MachineInstr &MI,
                                          const TargetInstrInfo *TII) {
   // Return if not the BRCC/BR/BTBF/BTCLR.
   if ((MI.getOpcode() != RL78::BRCC) && (MI.getOpcode() != RL78::BR) &&
-      (MI.getOpcode() != RL78::BTBF) && (MI.getOpcode() != RL78::BTBF_mem))
+      (MI.getOpcode() != RL78::BTBF) && (MI.getOpcode() != RL78::BTBF_mem) &&
+      (MI.getOpcode() != RL78::BTBF_sfr))
     return false;
   // MI.dump();
   MachineFunction::iterator MBBI = MBB.getIterator(), MBBE;
@@ -160,6 +150,13 @@ bool RL78BranchExpandPass::processBranch(MachineInstr &MI,
             .add(MI.getOperand(2))
             .add(MI.getOperand(3));
         break;
+      case RL78::BTBF_sfr:
+        BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(RL78::BTBF_sfri_addr))
+            .add(MI.getOperand(0))
+            .add(MI.getOperand(1))
+            .add(MI.getOperand(2))
+            .add(MI.getOperand(3));
+        break;
       case RL78::BRCC:
         BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(RL78::B_cc))
             .add(MI.getOperand(0))
@@ -183,8 +180,13 @@ bool RL78BranchExpandPass::processBranch(MachineInstr &MI,
       default:
         llvm_unreachable("Invalid branch instruction!");
       case RL78::BTBF_mem:
+      case RL78::BTBF_sfr:
       case RL78::BTBF: {
-        if (MI.getOpcode() == RL78::BTBF_mem)
+        if (MI.getOpcode() == RL78::BTBF_sfr)
+          BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(RL78::MOV1_cy_sfr))
+              .add(MI.getOperand(2))
+              .add(MI.getOperand(3));
+        else if (MI.getOpcode() == RL78::BTBF_mem)
           BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(RL78::MOV1_cy_memr))
               .add(MI.getOperand(2))
               .add(MI.getOperand(3));
@@ -238,7 +240,7 @@ bool RL78BranchExpandPass::runOnMachineFunction(MachineFunction &MF) {
   // Calc the size of each basic block.
   for (MachineBasicBlock &MBB : MF) {
     bbSizeMap.insert(
-        std::pair<int, unsigned>(MBB.getNumber(), calcBasicBlockSize(MBB)));
+        std::pair<int, unsigned>(MBB.getNumber(), calcBasicBlockSize(MBB, TII)));
   }
   //
   // MF.dump();

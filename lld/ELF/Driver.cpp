@@ -1163,6 +1163,9 @@ static void setConfigs(opt::InputArgList &args) {
 
   config->tocOptimize =
       args.hasFlag(OPT_toc_optimize, OPT_no_toc_optimize, m == EM_PPC64);
+
+  config->strideDSPMemoryArea =
+    args.hasFlag(OPT_stride_dsp_memory_area, OPT_no_stride_dsp_memory_area, false);
 }
 
 // Returns a value of "-format" option.

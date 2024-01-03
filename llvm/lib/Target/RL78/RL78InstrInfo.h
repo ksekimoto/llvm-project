@@ -100,6 +100,8 @@ public:
                             int FrameIndex, const TargetRegisterClass *RC,
                             const TargetRegisterInfo *TRI) const override;
 
+  bool expandPostRAPseudo(MachineInstr &MI) const override;
+
   /// Returns the size in bytes of the specified MachineInstr, or ~0U
   /// when this function is not implemented by a target.
   unsigned getInstSizeInBytes(const MachineInstr &MI) const override;

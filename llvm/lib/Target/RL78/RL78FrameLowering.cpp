@@ -28,7 +28,7 @@ static uint32_t getCSRegisterInfo(MachineFunction &MF) {
   } else {
     // Mark used regs.
     mask = 0;
-    for (regNo = RL78::RP0; regNo < RL78::RP8; ++regNo) {
+    for (regNo = RL78::RP0; regNo <= RL78::RP6; ++regNo) {
       if (!MF.getRegInfo().reg_empty(regNo) ||
           !MF.getRegInfo().reg_empty(TRI->getSubReg(regNo, RL78::sub_lo)) ||
           !MF.getRegInfo().reg_empty(TRI->getSubReg(regNo, RL78::sub_hi)))
@@ -37,7 +37,7 @@ static uint32_t getCSRegisterInfo(MachineFunction &MF) {
     }
   }
 
-  regNo = RL78::RP8 - RL78::RP0;
+  regNo = RL78::RP6 - RL78::RP0 + 1;
   if (!MF.getRegInfo().reg_empty(RL78::CS) || MF.getFrameInfo().hasCalls())
     mask |= 1 << regNo;
 

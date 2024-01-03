@@ -815,6 +815,17 @@ void LinkerScript::output(InputSection *s) {
   uint64_t before = advance(0, 1);
   uint64_t pos = advance(s->getSize(), s->alignment);
   s->outSecOff = pos - s->getSize() - ctx->outSec->addr;
+  if (config->emachine == EM_RL78 && config->strideDSPMemoryArea) {
+    // Check if the section intersects with the DSP area:
+    // The section is represented by the following interval:
+    // [s->getParent()->addr + s->outSecOff, s->getParent()->addr + s->outSecOff + s->getSize())
+    // and DSP area by: [0xFD800, 0xFF000).
+    if (((ctx->outSec->addr + s->outSecOff + s->getSize() >= 0xFD800) &&
+         (ctx->outSec->addr + s->outSecOff < 0xFF000))) {
+      pos = advance(0xFF000 - (ctx->outSec->addr + s->outSecOff), s->alignment);
+      s->outSecOff = pos - s->getSize() - ctx->outSec->addr;
+    }
+  }
 
   // Update output section size after adding each section. This is so that
   // SIZEOF works correctly in the case below:

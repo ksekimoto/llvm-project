@@ -2338,9 +2338,9 @@ utf8_to_ucs4(const uint8_t* frm, const uint8_t* frm_end, const uint8_t*& frm_nxt
             }
             if ((c3 & 0xC0) != 0x80)
                 return codecvt_base::error;
-            uint32_t t = static_cast<uint32_t>(((c1 & 0x0F) << 12)
-                                             | ((c2 & 0x3F) << 6)
-                                             |  (c3 & 0x3F));
+            uint32_t t = static_cast<uint32_t>(((c1 & 0x0FUL) << 12)
+                                             | ((c2 & 0x3FUL) << 6)
+                                             |  (c3 & 0x3FUL));
             if (t > Maxcode)
                 return codecvt_base::error;
             *to_nxt = t;
@@ -3970,9 +3970,15 @@ __codecvt_utf8_utf16<wchar_t>::do_in(state_type&,
     const uint8_t* _frm = reinterpret_cast<const uint8_t*>(frm);
     const uint8_t* _frm_end = reinterpret_cast<const uint8_t*>(frm_end);
     const uint8_t* _frm_nxt = _frm;
+#ifdef __RL78__
+    uint16_t* _to = reinterpret_cast<uint16_t*>(to);
+    uint16_t* _to_end = reinterpret_cast<uint16_t*>(to_end);
+    uint16_t* _to_nxt = _to;
+#else
     uint32_t* _to = reinterpret_cast<uint32_t*>(to);
     uint32_t* _to_end = reinterpret_cast<uint32_t*>(to_end);
     uint32_t* _to_nxt = _to;
+#endif
     result r = utf8_to_utf16(_frm, _frm_end, _frm_nxt, _to, _to_end, _to_nxt,
                              _Maxcode_, _Mode_);
     frm_nxt = frm + (_frm_nxt - _frm);

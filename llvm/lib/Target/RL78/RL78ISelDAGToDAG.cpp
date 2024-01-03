@@ -57,6 +57,7 @@ public:
 
   bool SelectADDRABS16(SDValue Addr, SDValue &Base);
   bool SelectSaddr(SDValue Addr, SDValue &Base);
+  bool SelectSFR(SDValue Addr, SDValue &Base);
   bool SelectADDRESABS16(SDValue Addr, SDValue &BaseHi, SDValue &BaseLow);
   bool SelectADDRESri(SDValue Addr, SDValue &BaseHi, SDValue &BaseLow,
                       SDValue &Offset);
@@ -204,6 +205,8 @@ bool RL78DAGToDAGISel::SelectADDRr(SDValue Addr, SDValue &Base) {
     return false;
   if (Addr.getOpcode() == ISD::FrameIndex)
     return false;
+  if (Addr.getOpcode() == ISD::Constant)
+    return false;
   if (Addr.getOpcode() == ISD::TargetExternalSymbol ||
       Addr.getOpcode() == ISD::TargetGlobalAddress ||
       Addr.getOpcode() == ISD::TargetBlockAddress ||
@@ -223,6 +226,8 @@ bool RL78DAGToDAGISel::SelectADDRri(SDValue Addr, unsigned Max, SDValue &Base,
   if (Addr.getOpcode() == RL78ISD::LOW8)
     return false;
   if (Addr.getOpcode() == ISD::FrameIndex)
+    return false;
+  if (Addr.getOpcode() == ISD::Constant)
     return false;
   // TODO: do we need this?
   // if (Addr.getOpcode() == ISD::TargetFrameIndex) return false;
@@ -286,7 +291,7 @@ bool RL78DAGToDAGISel::SelectADDRrr(SDValue Addr, SDValue &R1, SDValue &R2) {
   return false;
 }
 
-bool RL78DAGToDAGISel::SelectADDRABS16(SDValue Addr, SDValue &Base) {
+static bool selectADDRABS16(SDValue Addr, SDValue &Base, SelectionDAG *CurDAG, bool checkSFR) {
   if (Addr.getOpcode() == RL78ISD::LOW16 &&
       (Addr.getOperand(0).getOpcode() == ISD::TargetGlobalAddress ||
        Addr.getOperand(0).getOpcode() == ISD::Constant)) {
@@ -295,13 +300,19 @@ bool RL78DAGToDAGISel::SelectADDRABS16(SDValue Addr, SDValue &Base) {
   }
 
   if (Addr.getOpcode() == ISD::Constant) {
-    Base = CurDAG->getTargetConstant(
-        (dyn_cast<ConstantSDNode>(Addr)->getConstantIntValue()->getZExtValue()),
-        SDLoc(Addr), MVT::i16);
+    unsigned address =
+        dyn_cast<ConstantSDNode>(Addr)->getConstantIntValue()->getZExtValue();
+    if (checkSFR && (address >= 0xFF00))
+      return false;
+    Base = CurDAG->getTargetConstant(address, SDLoc(Addr), MVT::i16);
     return true;
   }
 
   return false;
+}
+
+bool RL78DAGToDAGISel::SelectADDRABS16(SDValue Addr, SDValue &Base) {
+  return selectADDRABS16(Addr, Base, CurDAG, true);
 }
 
 bool RL78DAGToDAGISel::SelectADDRESABS16(SDValue Addr, SDValue &BaseHi,
@@ -312,7 +323,7 @@ bool RL78DAGToDAGISel::SelectADDRESABS16(SDValue Addr, SDValue &BaseHi,
   if ((Addr.getOperand(0).getOpcode() != ISD::TargetGlobalAddress) &&
       (Addr.getOperand(0).getOpcode() != ISD::Constant))
     return false;
-  if (!SelectADDRABS16(Addr.getOperand(1), BaseLow))
+  if (!selectADDRABS16(Addr.getOperand(1), BaseLow, CurDAG, false))
     return false;
   if (Addr.getOperand(0).getOpcode() == ISD::Constant)
     BaseHi = CurDAG->getTargetConstant(Addr.getConstantOperandVal(0),
@@ -386,6 +397,17 @@ bool RL78DAGToDAGISel::SelectSaddr(SDValue Addr, SDValue &Base) {
   return true;
 }
 
+bool RL78DAGToDAGISel::SelectSFR(SDValue Addr, SDValue &Base) {
+  if (Addr.getOpcode() != ISD::Constant)
+    return false;
+  unsigned address =
+      dyn_cast<ConstantSDNode>(Addr)->getConstantIntValue()->getZExtValue();
+  if (address < 0xFF00)
+    return false;
+  Base = CurDAG->getTargetConstant(address, SDLoc(Addr), MVT::i16);
+  return true;
+}
+
 // HARD REQUIREMENT:
 // 11.1.8 Controlling the Output of Bit Manipulation Instructions [V1.04 or
 // later] To output bit manipulation instructions without using intrinsic
@@ -421,17 +443,29 @@ void RL78DAGToDAGISel::MatchSET1CLR1(SDNode *&N) {
       return;
   }
   
-  bool UseLoadChain = true;
+  // Check the chain uses for the load instruction:
+  // the store is the only user either directly or through
+  // a TokenFactor.
+  SDNode *chainNode = nullptr;
   SDNode::use_iterator UI = load.getNode()->use_begin(),
                        UE = load.getNode()->use_end();
   while (UI != UE) {
     SDUse &Use = UI.getUse();
-    if (Use.getUser() != N && Use.getUser() != logicalOp.getNode())
-      UseLoadChain = false;
+    if (Use.getResNo() == 1 && Use.getUser() != N) {
+      if (Use.getUser()->getOpcode() == ISD::TokenFactor) {
+        if ((!Use.getUser()->hasOneUse()) ||
+            (Use.getUser()->use_begin().getUse().getUser() != N))
+          return;
+        else
+          chainNode = Use.getUser();
+      } else
+        return;
+    } else if (Use.getResNo() == 0 && Use.getUser() != logicalOp.getNode())
+      return;
     ++UI;
   }
   const SDValue &chain =
-      UseLoadChain ? load->getOperand(0) : N->getOperand(0);
+      chainNode ? SDValue(chainNode, 0) : load->getOperand(0);
 
   // The load and store need to use the same address.
   if (load->getOperand(1) != N->getOperand(2))
@@ -441,7 +475,7 @@ void RL78DAGToDAGISel::MatchSET1CLR1(SDNode *&N) {
     return;
   uint64_t imm = logicalOp->getConstantOperandVal(1);
   if (logicalOp->getOpcode() == ISD::AND)
-    imm = ~imm & 0xFF;
+    imm = ~imm & ((VT == MVT::i8) ? 0xFF : 0xFFFF);
   if (!isPowerOf2_64(imm))
     return;
   // Make sure we can select.
@@ -511,6 +545,21 @@ void RL78DAGToDAGISel::Select(SDNode *N) {
     SelectFI(N);
     return;
   }
+  case ISD::TRUNCATE: {
+    // In case of right shift + trunc we can remove the shift.
+    if ((N->getOperand(0)->getValueType(0) == MVT::i16) &&
+        ((N->getOperand(0).getOpcode() == ISD::SRL) ||
+        (N->getOperand(0).getOpcode() == ISD::SRA)) &&
+        dyn_cast<ConstantSDNode>(N->getOperand(0).getOperand(1)) &&
+        N->getOperand(0).getConstantOperandVal(1) == 8) {
+      SDValue SubRegHi = CurDAG->getTargetConstant(RL78::sub_hi, dl, MVT::i8);
+      SDNode *Hi = CurDAG->getMachineNode(TargetOpcode::EXTRACT_SUBREG, dl,
+                                          MVT::i8,
+                                 N->getOperand(0)->getOperand(0), SubRegHi);
+      ReplaceNode(N, Hi);
+      return;
+    }
+  } break;
   case ISD::SHL: {
     // SHLW AX, 1 is 2 bytes, we can replace it with ADDW AX, AX (1 byte)
     if (N->getOperand(1).getOpcode() == ISD::Constant &&
