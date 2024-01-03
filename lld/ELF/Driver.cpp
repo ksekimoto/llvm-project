@@ -1542,10 +1542,14 @@ static void setConfigs(opt::InputArgList &args) {
                    OPT_no_check_dynamic_relocations, checkDynamicRelocsDefault);
   config->tocOptimize =
       args.hasFlag(OPT_toc_optimize, OPT_no_toc_optimize, m == EM_PPC64);
+
+  config->strideDSPMemoryArea = 
+    args.hasFlag(OPT_stride_dsp_memory_area, OPT_no_stride_dsp_memory_area, false);
   config->pcRelOptimize =
       args.hasFlag(OPT_pcrel_optimize, OPT_no_pcrel_optimize, m == EM_PPC64);
 }
 
+// Returns a value of "-format" option.
 static bool isFormatBinary(StringRef s) {
   if (s == "binary")
     return true;

@@ -128,6 +128,7 @@ def ADDRri16   : ComplexPattern<iPTR, 2, "SelectADDRri<65535>", [], []>;
 def ADDRSPi    : ComplexPattern<iPTR, 2, "SelectADDRSPi", [frameindex], []>;
 def ADDRABS16  : ComplexPattern<iPTR, 1, "SelectADDRABS16", [], []>;
 def SADDR      : ComplexPattern<iPTR, 1, "SelectSaddr", [], []>;
+def SFR        : ComplexPattern<iPTR, 1, "SelectSFR", [], []>;
 def ESADDRABS16: ComplexPattern<iPTR, 2, "SelectADDRESABS16", [], []>;
 def ADDRESri   : ComplexPattern<iPTR, 3, "SelectADDRESri", [], []>;
 def ADDRESr    : ComplexPattern<iPTR, 2, "SelectADDRESr", [], []>;
@@ -398,7 +399,7 @@ def MOV_cs_A : InstRL78_16bit<0x9EFC,
 //MOV A, L          66
 //MOV A, H          67
 def MOV_A_r : InstRL78_8bit<0x60,
-        (outs RL78AReg:$rd), (ins RL78Bank0Reg:$rsrc),
+        (outs RL78AReg:$rd), (ins RL78Reg:$rsrc),
         "mov $rd, $rsrc",
         []>;
 
@@ -411,7 +412,7 @@ def MOV_A_r : InstRL78_8bit<0x60,
 //MOV L, A          76
 //MOV H, A          77
 def MOV_r_A : InstRL78_8bit<0x70,
-        (outs RL78Bank0Reg:$rd), (ins RL78AReg:$rsrc),
+        (outs RL78Reg:$rd), (ins RL78AReg:$rsrc),
         "mov $rd, $rsrc",
         []>;
 }
@@ -450,6 +451,12 @@ def STORE8_stack_slot_imm : InstRL78_24bit<0xC80000,
         (outs), (ins STACKSlot:$addr, i8imm:$imm),
         "mov $addr, $imm",
         [(store (i8 imm:$imm), ADDRSPi:$addr)]>;
+
+//MOV sfr, #byte ;CE sfr data
+def STORE8_sfr_imm : InstRL78_24bit<0xCE0000,
+        (outs), (ins  Sfr:$sfr, i8imm:$imm8),
+        "mov $sfr, $imm8",
+        [(store (i8 imm:$imm8), SFR:$sfr)]>;
 
 let usesCustomInserter = 1 in {
 
@@ -604,6 +611,18 @@ def STORE8_memrr_r : InstRL78_16bit<0x61D9,
         (outs), (ins RegRegAddr:$addr, RL78Reg:$rsrc),
         "mov $addr, $rsrc",
         [(store i8:$rsrc, ADDRrr:$addr)]>;
+
+//MOV A, sfr ;8E sfr
+def LOAD8_r_sfr : InstRL78_16bit<0x8E00,
+        (outs RL78Reg:$rd), (ins Sfr:$addr),
+        "mov $rd, $addr",
+        [(set i8:$rd, (load SFR:$addr))]>;
+
+//MOV sfr, A ;9E sfr
+def STORE8_sfr_r : InstRL78_16bit<0x9E00,
+        (outs), (ins Sfr:$addr, RL78Reg:$rsrc),
+        "mov $addr, $rsrc",
+        [(store i8:$rsrc, SFR:$addr)]>;
 }
 
 let Uses = [CCreg] in {
@@ -643,13 +662,6 @@ def MOV_psw_imm : InstRL78_24bit<0xcefa00,
 		[]>;
 }
 
-
-//MOV A, sfr ;8E sfr   
-def MOV_A_sfr : InstRL78_16bit<0x8E00,
-        (outs RL78AReg:$rd), (ins Sfr:$sfr),
-        "mov $rd, $sfr",
-        []>;
-
 //MOV A, sfr ;8E sfr   
 def MOV_A_sfrReg : InstRL78_16bit<0x8E00,
         (outs RL78AReg:$rd), (ins RL78SfrReg:$sfr),
@@ -657,21 +669,9 @@ def MOV_A_sfrReg : InstRL78_16bit<0x8E00,
         []>;
 
 //MOV sfr, A ;9E sfr
-def MOV_sfr_A : InstRL78_16bit<0x9E00,
-        (outs Sfr:$sfr), (ins RL78AReg:$rd),
-        "mov $sfr, $rd",
-        []>;
-
-//MOV sfr, A ;9E sfr
 def MOV_sfrReg_A : InstRL78_16bit<0x9E00,
         (outs RL78SfrReg:$sfr), (ins RL78AReg:$rd),
         "mov $sfr, $rd",
-        []>;
-
-//MOV sfr, #byte ;CE sfr data
-def MOV_sfr_imm : InstRL78_24bit<0xCE0000,
-        (outs Sfr:$sfr), (ins i8imm:$imm8),
-        "mov $sfr, $imm8",
         []>;
 
 //MOV sfr_as_reg, #byte ;CE sfr data
@@ -1064,6 +1064,12 @@ def MOVW_saddrp_imm : InstRL78_32bit<0xC9000000,
         "movw $addr, $imm16",
         [(store (i16 imm:$imm16), SADDR:$addr)]>;
 
+//MOVW sfrp,#word ;CB sfr datal datah 
+def STORE16_sfrp_imm : InstRL78_32bit<0xCB000000,
+        (outs), (ins  Sfrp:$addr, i16imm:$imm16),
+        "movw $addr, $imm16",
+        [(store (i16 imm:$imm16), SFR:$addr)]>;
+
 let hasSideEffects = 0 in {
 
 
@@ -1359,25 +1365,19 @@ def STORE16_esaddr16_rp : InstRL78_32bit<0x11BF0000,
         (outs), (ins EsAddr16:$addr, RL78RPRegs:$rsrc),
         "movw $addr, $rsrc",
         [(store i16:$rsrc, ESADDRABS16:$addr)]>;
+
+//MOVW AX, sfrp ;AE sfr
+def LOAD16_rp_sfrp : InstRL78_16bit<0xAE00,
+        (outs RL78RPRegs:$rd), (ins Sfrp:$addr),
+        "movw $rd, $addr",
+        [(set i16:$rd, (load SFR:$addr))]>;
+
+//MOVW sfrp, AX ;BE sfr
+def STORE16_sfrp_rp : InstRL78_16bit<0xBE00,
+        (outs), (ins Sfrp:$addr, RL78RPRegs:$rsrc),
+        "movw $addr, $rsrc",
+        [(store i16:$rsrc, SFR:$addr)]>;
 }
-
-//MOVW AX, sfrp ;AE sfr   
-def MOVW_AX_sfrp : InstRL78_16bit<0xAE00,
-        (outs RL78AXRP:$rd), (ins Sfrp:$sfrp),
-        "movw $rd, $sfrp",
-        []>;
-
-//MOVW sfrp, AX ;BE sfr   
-def MOVW_sfrp_AX : InstRL78_16bit<0xBE00,
-        (outs Sfrp:$sfrp), (ins RL78AXRP:$rd),
-        "movw $sfrp, $rd",
-        []>;
-
-//MOVW sfrp,#word ;CB sfr datal datah 
-def MOVW_sfrp_imm : InstRL78_32bit<0xCB000000,
-        (outs Sfrp:$sfrp), (ins i16imm:$imm16),
-        "movw $sfrp, $imm16",
-        []>;
 
 //MOVW AX, sfrp ;AE sfr   
 def MOVW_AX_sfrpReg : InstRL78_16bit<0xAE00,
@@ -2855,7 +2855,32 @@ def DIVWU : InstRL78_24bit<0xCEFB0B,
 // MACHU/MACH instructions
 //===----------------------------------------------------------------------===//
 
-let Predicates = [isS3Core], usesCustomInserter = 1, Defs = [CCreg] in {
+def SDTMACHU : SDTypeProfile<2, 4, 
+  [SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>, SDTCisSameAs<0, 3>, SDTCisSameAs<0, 4>, 
+   SDTCisSameAs<0, 5>, SDTCisInt<0>]>;
+
+def machu : SDNode<"RL78ISD::MACHU", SDTMACHU, []>;
+def mach :  SDNode<"RL78ISD::MACH", SDTMACHU, []>;
+
+let Predicates = [isS3Core], usesCustomInserter = 1, isCodeGenOnly = 1, Defs = [CCreg] in {
+
+
+// X + Y * Z
+def MACHU_CG : InstRL78_24bit<0xCEFB05,
+        (outs RL78RegMACRL:$rd1, RL78RegMACRH:$rd2), (ins RL78RegMACRL:$rsrcXL, RL78RegMACRH:$rsrcXH, RL78RPRegs:$rsrcY, RL78RPRegs:$rsrcZ),
+        "machu ; macr, ax, bc",
+        [(set i16:$rd1, i16:$rd2, 
+         (machu i16:$rsrcXL, i16:$rsrcXH, i16:$rsrcY, i16:$rsrcZ))]>;
+
+def MACH_CG : InstRL78_24bit<0xCEFB06,
+        (outs RL78RegMACRL:$rd1, RL78RegMACRH:$rd2), (ins RL78RegMACRL:$rsrcXL, RL78RegMACRH:$rsrcXH, RL78RPRegs:$rsrcY, RL78RPRegs:$rsrcZ),
+        "mach ; macr, ax, bc",
+        [(set i16:$rd1, i16:$rd2, 
+         (mach i16:$rsrcXL, i16:$rsrcXH, i16:$rsrcY, i16:$rsrcZ))]>;
+
+}
+
+let Predicates = [isS3Core], Defs = [CCreg] in {
 
 def MACHU : InstRL78_24bit<0xCEFB05,
         (outs), (ins),
@@ -2864,7 +2889,7 @@ def MACHU : InstRL78_24bit<0xCEFB05,
 
 }
 
-let Predicates = [isS3Core], usesCustomInserter = 1, Defs = [CCreg] in {
+let Predicates = [isS3Core], Defs = [CCreg] in {
 
 def MACH : InstRL78_24bit<0xCEFB06,
         (outs), (ins),
@@ -2872,8 +2897,6 @@ def MACH : InstRL78_24bit<0xCEFB06,
         []>;
 
 }
-
-
 
 //===----------------------------------------------------------------------===//
 // INC instruction
@@ -3100,7 +3123,7 @@ let Constraints = "$rsrc = $rd", Defs = [CCreg], usesCustomInserter = 1 in {
         [(set i8:$rd, (srl i8:$rsrc, (i8 imm:$imm)))]>;
 }
 
-let Constraints = "$rsrc = $rd", usesCustomInserter = 1 in {
+let Constraints = "$rsrc = $rd", usesCustomInserter = 1, Defs = [R3] in {
 
 def SHR_r_r : Pseudo<
     (outs RL78Reg:$rd), (ins RL78Reg:$rsrc, RL78Reg:$rsrc2),
@@ -3138,7 +3161,7 @@ let Constraints = "$rsrc = $rd", Defs = [CCreg], usesCustomInserter = 1 in {
         [(set i16:$rd, (srl i16:$rsrc, (i8 imm:$imm)))]>;
 }
 
-let Constraints = "$rsrc = $rd", usesCustomInserter = 1 in {
+let Constraints = "$rsrc = $rd", usesCustomInserter = 1, Defs = [R3] in {
 
 def SHRW_rp_rp : Pseudo<
     (outs RL78RPRegs:$rd), (ins RL78RPRegs:$rsrc, RL78Reg:$rsrc2),
@@ -3161,7 +3184,7 @@ let Constraints = "$rsrc = $rd", Defs = [CCreg], usesCustomInserter = 1 in {
         [(set i8:$rd, (shl i8:$rsrc, (i8 imm:$imm)))]>;
 }
 
-let Constraints = "$rsrc = $rd", usesCustomInserter = 1 in {
+let Constraints = "$rsrc = $rd", usesCustomInserter = 1, Defs = [R3] in {
 
 def SHL_r_r : Pseudo<
     (outs RL78Reg:$rd), (ins RL78Reg:$rsrc, RL78Reg:$rsrc2),
@@ -3185,7 +3208,7 @@ let Constraints = "$rsrc = $rd", Defs = [CCreg], usesCustomInserter = 1 in {
         [(set i16:$rd, (shl i16:$rsrc, (i8 imm:$imm)))]>;
 }
 
-let Constraints = "$rsrc = $rd", usesCustomInserter = 1 in {
+let Constraints = "$rsrc = $rd", usesCustomInserter = 1, Defs = [R3] in {
 
 def SHLW_rp_rp : Pseudo<
     (outs RL78RPRegs:$rd), (ins RL78RPRegs:$rsrc, RL78Reg:$rsrc2),
@@ -3206,7 +3229,7 @@ let Constraints = "$rsrc = $rd", Defs = [CCreg], usesCustomInserter = 1 in {
         [(set i8:$rd, (sra i8:$rsrc, (i8 imm:$imm)))]>;
 }
 
-let Constraints = "$rsrc = $rd", usesCustomInserter = 1 in {
+let Constraints = "$rsrc = $rd", usesCustomInserter = 1, Defs = [R3] in {
 
 def SAR_r_r : Pseudo<
     (outs RL78Reg:$rd), (ins RL78Reg:$rsrc, RL78Reg:$rsrc2),
@@ -3243,7 +3266,7 @@ let Constraints = "$rsrc = $rd", Defs = [CCreg], usesCustomInserter = 1 in {
         [(set i16:$rd, (sra i16:$rsrc, (i8 imm:$imm)))]>;
 }
 
-let Constraints = "$rsrc = $rd", usesCustomInserter = 1 in {
+let Constraints = "$rsrc = $rd", usesCustomInserter = 1, Defs = [R3] in {
 
 def SARW_rp_rp : Pseudo<
     (outs RL78RPRegs:$rd), (ins RL78RPRegs:$rsrc, RL78Reg:$rsrc2),
@@ -3255,7 +3278,7 @@ def SARW_rp_rp : Pseudo<
 // ROTL/ROTR pseudos
 //===----------------------------------------------------------------------===//
 
-let usesCustomInserter = 1 in {
+let usesCustomInserter = 1, Defs = [R3] in {
   def ROTL_r_imm : Pseudo<
         (outs RL78Reg:$rd), (ins RL78Reg:$rsrc, i8imm:$imm),
         ";rotl $rd, $rsrc, $imm",
@@ -3467,9 +3490,9 @@ let Uses = [CCreg] in {
 //Instruction         Opcode
 //MOV1 sfr.0. CY  71 09 sfr   (X -> 0..7)
   def MOV1_sfr_cy : InstRL78_24bit<0x710900,
-        (outs), (ins Sfr:$addr, bitimm:$imm, RL78RegCY:$rcy),
-        "mov1 $addr$imm, $rcy",
-        []>;
+        (outs), (ins Sfr:$addr, bitimm:$imm),
+        "mov1 $addr$imm, cy",
+        [(store1fromcy (i8 imm:$imm), SFR:$addr)]>;
 
 //Instruction         Opcode
 //MOV1 sfr.0. CY  71 09 sfr   (X -> 0..7)
@@ -3481,9 +3504,9 @@ let Uses = [CCreg] in {
 //Instruction         Opcode
 //MOV1 CY, sfr.x ;71 xC sfr   (X -> 0..7)
   def MOV1_cy_sfr : InstRL78_24bit<0x710C00,
-        (outs), (ins RL78RegCY:$rcy, Sfr:$addr, bitimm:$imm),
-        "mov1 $rcy, $addr$imm ",
-        []>;
+        (outs), (ins Sfr:$addr, bitimm:$imm),
+        "mov1 cy, $addr$imm",
+        [(load1tocy (i8 imm:$imm), SFR:$addr)]>;
 
 //Instruction         Opcode
 //MOV1 CY, sfr.x ;71 xC sfr   (X -> 0..7)
@@ -3773,7 +3796,7 @@ def SET1_PSW : InstRL78_24bit<0x710AFA,
 def SET1_sfr : InstRL78_24bit<0x710A00,
         (outs), (ins Sfr:$addr, bitimm:$imm),
         "set1 $addr$imm",
-        []>;
+        [(set1 (i8 imm:$imm), SFR:$addr)]>;
 
 
 //SET1 sfr.0                  ;71 xA sfr  
@@ -3858,7 +3881,7 @@ def CLR1_PSW : InstRL78_24bit<0x710BFA,
 def CLR1_sfr : InstRL78_24bit<0x710B00,
         (outs), (ins Sfr:$addr, bitimm:$imm),
         "clr1 $addr$imm",
-        []>;
+        [(clr1 (i8 imm:$imm), SFR:$addr)]>;
 
 //CLR1 sfr.x ;71 xB sfr
 def CLR1_sfrReg : InstRL78_24bit<0x710B00,
@@ -3945,7 +3968,7 @@ let usesCustomInserter = 1, isCall = 1, isCodeGenOnly = 1, Defs = [SPreg], Uses 
         [(call (i16 (RL78Hi16 i16:$high, i16:$low)))]>;
 }
 
-let isCall = 1, Defs = [SPreg], Uses = [SPreg] in
+let isCall = 1, Defs = [SPreg, R0, R1, R2, R3, R4, R5, R6, R7, RP0, RP2, RP4, RP6], Uses = [SPreg] in
 {
 //Instruction       Opcode
 //CALL AX           61 CA
@@ -4159,6 +4182,53 @@ let usesCustomInserter = 1, isSelect = 1, Uses = [CCreg] in {
 }
 
 //===----------------------------------------------------------------------===//
+// LOWCMP compound instruction
+//===----------------------------------------------------------------------===//
+
+def SDTRL78LowCmp : SDTypeProfile<0, 2, [SDTCisInt<0>, SDTCisVT<1, i16>]>;
+def RL78lowcmp: SDNode<"RL78ISD::LOWCMP", SDTRL78LowCmp, [SDNPOptInGlue, SDNPOutGlue]>;
+let usesCustomInserter = 1, isCodeGenOnly = 1, Uses = [CCreg], Defs = [CCreg] in {
+  def LowCMPW_rp_imm : InstRL78_40bit<0x61F8440000,
+        (outs), (ins RL78RPRegs:$rsrc, i16imm:$imm16),
+        "sknz\n\tcmpw $rsrc, $imm16",
+         [(RL78lowcmp i16:$rsrc, (i16 imm:$imm16))]>;
+
+//Instruction           Opcode
+//SKNZ
+//CMPW AX, BC           43
+//CMPW AX, DE           45
+//CMPW AX, HL           47
+  def LowCMPW_rp_rp : InstRL78_24bit<0x61F843,
+        (outs), (ins RL78RPRegs:$rsrc, RL78RPRegs:$rsrc2),
+        "sknz\n\tcmpw $rsrc, $rsrc2",
+         [(RL78lowcmp i16:$rsrc, i16:$rsrc2)]>;
+
+//Instruction           Opcode
+//SKNZ
+//CMPW AX, saddrp       46 saddr
+  def LowCMPW_rp_saddr : InstRL78_32bit<0x61F84600,
+        (outs), (ins RL78RPRegs:$rsrc, ABS8:$addr),
+        "sknz\n\tcmpw $rsrc, $addr",
+         [(RL78lowcmp i16:$rsrc, (load SADDR:$addr))]>;
+
+//Instruction           Opcode
+//SKNZ
+//CMPW AX, !addr16      42 adrl adrh 
+  def LowCMPW_rp_abs16 : InstRL78_40bit<0x61F8420000,
+        (outs), (ins RL78RPRegs:$rsrc, ABS16:$addr),
+        "sknz\n\tcmpw $rsrc, $addr",
+        [(RL78lowcmp i16:$rsrc, (load tglobaladdr:$addr))]>;
+
+//Instruction         Opcode
+//SKNZ
+//CMPW AX, [HL+byte]  61 49 adr 
+  def LowCMPW_rp_memri : InstRL78_40bit<0x61F8614900,
+        (outs), (ins RL78RPRegs:$rsrc, RegOffsetAddr:$addr),
+        "sknz\n\tcmpw $rsrc, $addr",
+        [(RL78lowcmp i16:$rsrc, (load ADDRri8:$addr))]>;
+}
+
+//===----------------------------------------------------------------------===//
 // BR
 //===----------------------------------------------------------------------===//
 
@@ -4309,6 +4379,13 @@ let isTerminator = 1, isBranch = 1, usesCustomInserter = 1 in {
           (outs), (ins brtarget:$target, CCOp:$cond, HLAddr:$addr, bitimm:$bit),
           ";b$cond $addr$bit, $target",
           [(RL78btbf bb:$target, imm:$cond, (i8 (load ADDRr:$addr)), imm:$bit)]>;
+}
+
+let isTerminator = 1, isBranch = 1 in {
+def BTBF_sfr : Pseudo<
+          (outs), (ins brtarget:$target, CCOp:$cond, Sfr:$addr, bitimm:$bit),
+          ";b$cond $addr$bit, $target",
+          [(RL78btbf bb:$target, imm:$cond, (i8 (load SFR:$addr)), imm:$bit)]>;
 }
 
 //===----------------------------------------------------------------------===//

@@ -37,7 +37,8 @@ public:
     VK_RL78_SIZEOF,
     VK_RL78_BITPOSITIONAL,
     VK_RL78_IMM_SYM,
-    VK_RL78_REL_DIFF
+    VK_RL78_REL_DIFF,
+    VK_RL78_FUNCTION
   };
 
 private:
@@ -66,7 +67,7 @@ private:
   ConvertExpressionToFixups(const MCExpr *Expression,
                             SmallVectorImpl<MCFixup> &fixups, bool &NeedsPop,
                             unsigned FixupFromOp, MCContext &Ctx, SMLoc Loc,
-                            int64_t offset);
+                            int64_t offset, RL78::Fixups &DirectFixup);
   static ConversionStatus
   HandleBinaryRelAbsOp(const MCExpr *SymWithPossibleOffset, int64_t Abs,
                        RL78MCExpr::ConversionStatus &CurrentStatus,

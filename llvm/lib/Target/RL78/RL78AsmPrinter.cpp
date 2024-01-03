@@ -97,8 +97,20 @@ void RL78AsmPrinter::emitInstruction(const MachineInstr *MI) {
   }
   MCInst TmpInst;
   // MI->dump();
-  LowerRL78MachineInstrToMCInst(MI, TmpInst, *this);
-  EmitToStreamer(*OutStreamer, TmpInst);
+  if (MI->getOpcode() == TargetOpcode::BUNDLE) {
+    MachineBasicBlock::const_instr_iterator I = MI->getIterator();
+    MachineBasicBlock::const_instr_iterator E = MI->getParent()->instr_end();
+    while (++I != E && I->isInsideBundle()) {
+      assert(!I->isBundle() && "No nested bundle!");
+      MCInst TmpInst;
+      LowerRL78MachineInstrToMCInst(&*I, TmpInst, *this);
+      EmitToStreamer(*OutStreamer, TmpInst);
+    }
+  } else {
+    MCInst TmpInst;
+    LowerRL78MachineInstrToMCInst(MI, TmpInst, *this);
+    EmitToStreamer(*OutStreamer, TmpInst);
+  }
 }
 
 void RL78AsmPrinter::emitStartOfAsmFile(Module &M) {

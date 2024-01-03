@@ -2418,8 +2418,6 @@ void Clang::AddRL78TargetArgs(const ArgList &Args,
   // becuase there's no 20 bit indirect jump just 16 bit.
   CmdArgs.push_back("-fno-jump-tables");
   //CmdArgs.push_back("-fno-use-init-array"); TODO: decide if we want ctors or init_array
-  CmdArgs.push_back("-mllvm");
-  CmdArgs.push_back("-combiner-store-merging");
 
   //TODO: quick hack, disable vla properly for RL78.
   //CmdArgs.push_back("-Werror=vla");

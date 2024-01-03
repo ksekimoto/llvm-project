@@ -117,8 +117,7 @@ void CodeGenFunction::SetFPModel() {
                           getLangOpts().getFPRoundingMode());
   auto fpExceptionBehavior = ToConstrainedExceptMD(
                                getLangOpts().getFPExceptionMode());
-  //TODO: find a better solution
-  fpExceptionBehavior = llvm::fp::ebIgnore;
+
   if (fpExceptionBehavior == llvm::fp::ebIgnore &&
       fpRoundingMode == llvm::fp::rmToNearest)
     // Constrained intrinsics are not used.

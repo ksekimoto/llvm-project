@@ -200,6 +200,7 @@ struct Configuration {
   bool nmagic;
   bool noDynamicLinker = false;
   bool noinhibitExec;
+  bool noinhibitAssert;
   bool nostdlib;
   bool oFormatBinary;
   bool omagic;
@@ -231,6 +232,7 @@ struct Configuration {
   bool thinLTOIndexOnly;
   bool timeTraceEnabled;
   bool tocOptimize;
+  bool strideDSPMemoryArea;
   bool pcRelOptimize;
   bool undefinedVersion;
   bool unique;

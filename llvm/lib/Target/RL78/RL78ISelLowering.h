@@ -25,6 +25,7 @@ enum NodeType : unsigned {
   FIRST_NUMBER = ISD::BUILTIN_OP_END,
   SEL_RB,
   CMP,
+  LOWCMP,
   CALL,
   CALLT,
   CALL_FP,
@@ -53,6 +54,8 @@ enum NodeType : unsigned {
   ANDMEM,
   ORMEM,
   XORMEM,
+  MACHU,
+  MACH
 };
 }
 
@@ -63,6 +66,7 @@ public:
   RL78TargetLowering(const TargetMachine &TM, const RL78Subtarget &STI);
 
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
+  SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
 
   bool useSoftFloat() const override;
 
@@ -254,6 +258,13 @@ private:
   SDValue LowerIntrinsicWithoutChain(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerIntrinsicVoid(SDValue Op, SelectionDAG &DAG) const;
 
+  SDValue PerformBRCONDCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue PerformMULCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue PerformUDIVREMCombine(SDNode *N, DAGCombinerInfo &DCI,
+                                ISD::NodeType otherNodeType) const;
+  SDValue PerformMULADDCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue PerformTruncateCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+
   MachineBasicBlock *LowerEXTEND(bool sext, MachineInstr &MI,
                                  MachineBasicBlock *BB) const;
   MachineBasicBlock *LowerADDE_SUBE_rp_rp(unsigned int opcode, MachineInstr &MI,
@@ -297,6 +308,8 @@ private:
                                    MachineBasicBlock *BB) const;
   MachineBasicBlock *LowerMUL8(MachineInstr &MI, MachineBasicBlock *BB) const;
   MachineBasicBlock *LowerMUL16(MachineInstr &MI, MachineBasicBlock *BB) const;
+  MachineBasicBlock *LowerShiftOrRotateForSpeed(MachineInstr &MI,
+                                                MachineBasicBlock *BB) const;
   MachineBasicBlock *LowerShift_Or_LowerRotate_rp_rp(MachineInstr &MI,
                                                      MachineBasicBlock *BB,
                                                      unsigned int opcode,

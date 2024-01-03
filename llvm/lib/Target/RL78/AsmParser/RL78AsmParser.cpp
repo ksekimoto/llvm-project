@@ -206,12 +206,9 @@ public:
 
 static constexpr const char *BitPositionSymbolPrefix = ".$$$";
 
-static const MCPhysReg IntRegs[32] = {
+static const MCPhysReg IntRegs[8] = {
     RL78::R0,  RL78::R1,  RL78::R2,  RL78::R3,  RL78::R4,  RL78::R5,  RL78::R6,
-    RL78::R7,  RL78::R8,  RL78::R9,  RL78::R10, RL78::R11, RL78::R12, RL78::R13,
-    RL78::R14, RL78::R15, RL78::R16, RL78::R17, RL78::R18, RL78::R19, RL78::R20,
-    RL78::R21, RL78::R22, RL78::R23, RL78::R24, RL78::R25, RL78::R26, RL78::R27,
-    RL78::R28, RL78::R29, RL78::R30, RL78::R31};
+    RL78::R7};
 
 namespace {
 

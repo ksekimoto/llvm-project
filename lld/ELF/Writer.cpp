@@ -1669,6 +1669,7 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
   ThunkCreator tc;
   AArch64Err843419Patcher a64p;
   ARMErr657417Patcher a32p;
+  config->noinhibitAssert = false;
   script->assignAddresses();
   // .ARM.exidx and SHF_LINK_ORDER do not require precise addresses, but they
   // do require the relative addresses of OutputSections because linker scripts
@@ -1747,6 +1748,8 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
              osec->name + " is not a multiple of alignment (" +
              Twine(osec->alignment) + ")");
     }
+  config->noinhibitAssert = true;
+  script->assignAddresses();
 }
 
 // If Input Sections have been shrunk (basic block sections) then
@@ -2695,6 +2698,14 @@ template <class ELFT> void Writer<ELFT>::setPhdrs(Partition &part) {
 
       if (!p->hasLMA)
         p->p_paddr = first->getLMA();
+
+      if (config->emachine == EM_RL78 && config->strideDSPMemoryArea &&
+          (p->p_vaddr != p->p_paddr) && (p->p_paddr + p->p_memsz >= 0xFD800) &&
+                 (p->p_paddr < 0xFF000)) {
+        // In case LMA != VMA and LMA and the phdr intersects with the DSP area
+        // we return an error.
+        error("unable to allocate program header in DSP area");
+      }
     }
 
     if (p->p_type == PT_GNU_RELRO) {

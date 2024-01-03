@@ -834,6 +834,7 @@ public:
 
   bool Warning(SMLoc L, const Twine &Msg, SMRange Range = None) override;
   bool parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc, AsmTypeInfo *TypeInfo) override;
+  bool parseIdentifier(StringRef &Res) override;
 };
 
 } // end anonymous namespace
@@ -7038,6 +7039,33 @@ bool RL78AsmParser::Warning(SMLoc L, const Twine &Msg, SMRange Range) {
   printMessage(L, SourceMgr::DK_Warning, Msg, Range);
   printMacroInstantiations();
   return false;
+}
+
+bool RL78AsmParser::parseIdentifier(StringRef &Res) {
+  if (Lexer.is(AsmToken::At)) {
+    // Handle  @$IMM_.
+    SMLoc PrefixLoc = getLexer().getLoc();
+
+    AsmToken Buf[2];
+    Lexer.peekTokens(Buf, false);
+    if (Buf[0].getKind() == AsmToken::Dollar &&
+        Buf[1].getKind() == AsmToken::Identifier &&
+        PrefixLoc.getPointer() + 1 == Buf[0].getLoc().getPointer() &&
+        Buf[0].getLoc().getPointer() + 1 == Buf[1].getLoc().getPointer() &&
+        Buf[1].getString().startswith("IMM_")) {
+      // Eat the @.
+      Lexer.Lex();
+      // Eat the $.
+      Lexer.Lex();
+      // Construct the joined identifier and consume the token.
+      Res = StringRef(PrefixLoc.getPointer(),
+                      getTok().getIdentifier().size() + 2);
+      // Eat the identifier.
+      Lexer.Lex();
+      return false;
+    }
+  }
+  return AsmParser::parseIdentifier(Res);
 }
 
 /// Parse a primary expression and return it.

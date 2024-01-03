@@ -150,6 +150,12 @@ bool RL78MCExpr::getFixupForKind(RL78MCExpr::VariantKind Kind, RL78::Fixups &Fix
     else
       Fixup = RL78::fixup_RL78_OPsctsize;
     return true;
+  case VK_RL78_FUNCTION:
+    if (IsPopPush)
+      return false;
+    else
+      Fixup = RL78::fixup_RL78_DIR16U;
+    return true;
   }
 }
 
@@ -488,10 +494,11 @@ RL78MCExpr::ConversionStatus RL78MCExpr::HandleBinaryRelAbsOp(
     // to create a symbol for the ABS, a fixup for it and the fixup for the
     // operation
     MCSymbol *AbsSymbol = Ctx.lookupSymbol("@$IMM_" + utostr(Abs));
-    AbsSymbol->setUsedInReloc();
     if (!AbsSymbol)
       return ConversionStatus();
+    AbsSymbol->setUsedInReloc();
     NeedsPop = true;
+    CurrentStatus.VariantKind = RL78MCExpr::VK_RL78_IMM_SYM;
     fixups.push_back(MCFixup::create(
         offset,
         RL78MCExpr::create(RL78MCExpr::VK_RL78_IMM_SYM,
@@ -508,7 +515,8 @@ RL78MCExpr::ConversionStatus RL78MCExpr::HandleBinaryRelAbsOp(
 
 RL78MCExpr::ConversionStatus RL78MCExpr::ConvertExpressionToFixups(
     const MCExpr *Expression, SmallVectorImpl<MCFixup> &fixups, bool &NeedsPop,
-    unsigned FixupFromOp, MCContext &Ctx, SMLoc Loc, int64_t offset) {
+    unsigned FixupFromOp, MCContext &Ctx, SMLoc Loc, int64_t offset,
+    RL78::Fixups &DirectFixup) {
   ConversionStatus CurrentStatus;
 
   std::set<RL78MCExpr::VariantKind> VariantSet1 = {};
@@ -532,14 +540,26 @@ RL78MCExpr::ConversionStatus RL78MCExpr::ConvertExpressionToFixups(
     const MCExpr *SubExpr = TargetExpr->getSubExpr();
     RL78::Fixups Fixup;
     ConversionStatus SubStatus = ConvertExpressionToFixups(
-        SubExpr, fixups, NeedsPop, FixupFromOp, Ctx, Loc, offset);
+        SubExpr, fixups, NeedsPop, FixupFromOp, Ctx, Loc, offset, DirectFixup);
     CurrentStatus.VariantKind = TargetExpr->getVariantKind();
+    CurrentStatus.WasSizeOfPlusStartOf = SubStatus.WasSizeOfPlusStartOf;
 
-    if (!SubStatus.Success || SubStatus.WasSizeOfPlusStartOf ||
+    if (!SubStatus.Success ||
         !TargetExpr->getFixupForKind(
             Fixup, SubStatus.VariantKind != RL78MCExpr::VK_RL78_None,
             FixupFromOp))
       return ConversionStatus();
+
+    // FXIME: hack which needs to be deleted when we get rid of the plt.
+    // Remove DirectFixup from param list.
+    if (CurrentStatus.VariantKind == VK_RL78_FUNCTION) {
+      DirectFixup = Fixup;
+      const MCSymbolRefExpr *SymExpr = cast<MCSymbolRefExpr>(SubExpr);
+      return {/*Success*/ true,
+              /*SymWithPossibleOffset*/ SymExpr,
+              /*Constant*/ 0,
+              /*IsAbsolute*/ false};
+    }
 
     if (SubStatus.IsAbsolute) {
       CurrentStatus.Success = GetAbsValueForVariant(CurrentStatus.VariantKind,
@@ -572,7 +592,7 @@ RL78MCExpr::ConversionStatus RL78MCExpr::ConvertExpressionToFixups(
       CurrentStatus.IsAbsolute = false;
       CurrentStatus.AllowOnlyAbsPlusMinus = true;
       if (TargetExpr->getVariantKind() != RL78MCExpr::VK_RL78_SADW) {
-        NeedsPop = true;
+        NeedsPop = (CurrentStatus.VariantKind != VK_RL78_FUNCTION);
         fixups.push_back(
             MCFixup::create(offset,
                             SubStatus.VariantKind == RL78MCExpr::VK_RL78_None
@@ -593,9 +613,9 @@ RL78MCExpr::ConversionStatus RL78MCExpr::ConvertExpressionToFixups(
         dyn_cast<MCBinaryExpr>(Expression);
     MCBinaryExpr::Opcode Op = BinaryExpr->getOpcode();
     ConversionStatus LHS = ConvertExpressionToFixups(
-        BinaryExpr->getLHS(), fixups, NeedsPop, FixupFromOp, Ctx, Loc, offset);
+        BinaryExpr->getLHS(), fixups, NeedsPop, FixupFromOp, Ctx, Loc, offset, DirectFixup);
     ConversionStatus RHS = ConvertExpressionToFixups(
-        BinaryExpr->getRHS(), fixups, NeedsPop, FixupFromOp, Ctx, Loc, offset);
+        BinaryExpr->getRHS(), fixups, NeedsPop, FixupFromOp, Ctx, Loc, offset, DirectFixup);
 
     if (!LHS.Success || !RHS.Success || LHS.WasSizeOfPlusStartOf ||
         RHS.WasSizeOfPlusStartOf)
@@ -627,6 +647,7 @@ RL78MCExpr::ConversionStatus RL78MCExpr::ConvertExpressionToFixups(
                 (MCFixupKind)RL78::Fixups::fixup_RL78_OPadd, Loc));
             CurrentStatus.Success = true;
             CurrentStatus.WasSizeOfPlusStartOf = true;
+            CurrentStatus.VariantKind = RL78MCExpr::VK_RL78_STARTOF;
             return CurrentStatus;
           }
           return ConversionStatus();
@@ -682,7 +703,8 @@ RL78MCExpr::ConversionStatus RL78MCExpr::ConvertExpressionToFixups(
     int64_t Res;
     if (UnaryExpr->getOpcode() == MCUnaryExpr::Plus)
       return ConvertExpressionToFixups(UnaryExpr->getSubExpr(), fixups,
-                                       NeedsPop, FixupFromOp, Ctx, Loc, offset);
+                                       NeedsPop, FixupFromOp, Ctx, Loc, offset,
+                                       DirectFixup);
     if (UnaryExpr->getSubExpr()->evaluateAsAbsolute(Res)) {
       if (UnaryExpr->getOpcode() == MCUnaryExpr::Minus)
         Res = -Res;
@@ -745,8 +767,8 @@ void RL78MCExpr::createFixupsForExpression(const MCExpr *expression,
       // SymbolRefs can use the DirectFixups, no need for the queue based ones.
       bool NeedsPop = false;
 
-      ConversionStatus Status = ConvertExpressionToFixups(
-          expression, fixups, NeedsPop, FixupFromOp, Ctx, Loc, offset);
+      ConversionStatus Status = ConvertExpressionToFixups(expression, fixups, NeedsPop, FixupFromOp,
+                                    Ctx, Loc, offset, DirectFixup);
 
       // TODO: Loc might be null, leading to an unhelpful error message.
       if (!Status.Success) {

@@ -113,6 +113,279 @@ void RL78InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   // MBB.dump();
 }
 
+static void BuildUnrolledShiftStep(const RL78InstrInfo *II,
+                            llvm::MachineBasicBlock *BB, llvm::MachineInstr &MI,
+                            llvm::DebugLoc &DL, unsigned int opcode,
+                            const llvm::Register &Rd,
+                            unsigned CounterShiftAmount, unsigned RdOpAmount,
+                            unsigned OpSize, unsigned OpInstrCount,
+                            MachineInstrBuilder &FirstInstruction,
+                            MachineInstrBuilder &LastInstruction) {
+
+  unsigned JumpSize = OpSize * RdOpAmount;
+  if (RdOpAmount == 1) {
+    FirstInstruction = BuildMI(*BB, MI, DL, II->get(RL78::CMP0_r))
+                           .addReg(RL78::R3, RegState::Kill);
+    if (OpInstrCount > 1)
+      BuildMI(*BB, MI, DL, II->get(RL78::B_cc))
+          .addImm(JumpSize)
+          .addImm(RL78CC::RL78CC_Z);
+    else
+      BuildMI(*BB, MI, DL, II->get(RL78::SK_cc_nodst)).addImm(RL78CC::RL78CC_Z);
+  } else {
+    FirstInstruction = BuildMI(*BB, MI, DL, II->get(RL78::SHL_r_imm), RL78::R3)
+                           .addReg(RL78::R3, RegState::Kill)
+                           .addImm(CounterShiftAmount);
+    if (OpInstrCount > 1 || JumpSize > 0)
+      BuildMI(*BB, MI, DL, II->get(RL78::B_cc))
+          .addImm(JumpSize)
+          .addImm(RL78CC::RL78CC_NC);
+    else
+      BuildMI(*BB, MI, DL, II->get(RL78::SK_cc_nodst))
+          .addImm(RL78CC::RL78CC_NC);
+  }
+
+  switch (opcode) {
+  case RL78::ROTL16_rp_rp:
+    for (int i = 0; i < RdOpAmount; i++) {
+      BuildMI(*BB, MI, DL, II->get(RL78::MOV1_cy_r)).addReg(RL78::R1).addImm(7);
+      LastInstruction =
+          BuildMI(*BB, MI, DL, II->get(RL78::ROLWC_rp_1), RL78::RP0)
+              .addReg(RL78::RP0, RegState::Kill);
+    }
+    break;
+
+  case RL78::ROTR16_rp_rp:
+    for (int i = 0; i < RdOpAmount; i++) {
+      BuildMI(*BB, MI, DL, II->get(RL78::SHRW_rp_i), RL78::RP0)
+          .addReg(RL78::RP0, RegState::Kill)
+          .addImm(1);
+      LastInstruction = BuildMI(*BB, MI, DL, II->get(RL78::MOV1_r_cy), RL78::R1)
+                            .addReg(RL78::R1)
+                            .addImm(7);
+    }
+    break;
+  case RL78::ROR_r_1:
+  case RL78::ROL_r_1:
+    for (int i = 0; i < RdOpAmount; i++) {
+      LastInstruction =
+          BuildMI(*BB, MI, DL, II->get(opcode), Rd).addReg(Rd, RegState::Kill);
+    }
+    break;
+
+  case RL78::SHLW_rp_imm:
+    if (RdOpAmount == 1)
+      LastInstruction = BuildMI(*BB, MI, DL, II->get(RL78::ADDW_rp_rp), Rd)
+                            .addReg(Rd)
+                            .addReg(Rd, RegState::Kill);
+    else
+      LastInstruction = BuildMI(*BB, MI, DL, II->get(opcode), Rd)
+                            .addReg(Rd, RegState::Kill)
+                            .addImm(RdOpAmount);
+    break;
+  default:
+    LastInstruction = BuildMI(*BB, MI, DL, II->get(opcode), Rd)
+                          .addReg(Rd, RegState::Kill)
+                          .addImm(RdOpAmount);
+    break;
+  }
+}
+
+static bool BuildADDE_SUBBE_rp_rp(const RL78InstrInfo *II,
+                                  llvm::MachineBasicBlock *BB,
+                                  llvm::MachineInstr &MI, llvm::DebugLoc &DL,
+                                  unsigned int carryOpcode,
+                                  unsigned int opcode) {
+  MachineInstrBuilder FirstInstruction, LastInstruction;
+
+  if (!MI.getOperand(0).isReg() || MI.getOperand(0).getReg() != RL78::RP0 ||
+      !MI.getOperand(1).isReg() ||
+      MI.getOperand(0).getReg() != MI.getOperand(1).getReg() ||
+      !MI.getOperand(2).isReg())
+    return false;
+
+  FirstInstruction = BuildMI(*BB, MI, DL, II->get(RL78::SK_cc_nodst))
+                         .addImm(RL78CC::RL78CC_NC);
+  BuildMI(*BB, MI, DL, II->get(carryOpcode), RL78::RP0)
+      .addReg(RL78::RP0, RegState::Kill);
+
+  LastInstruction = BuildMI(*BB, MI, DL, II->get(opcode), RL78::RP0)
+                        .addReg(RL78::RP0, RegState::Kill)
+                        .add(MI.getOperand(2));
+  finalizeBundle(*BB, FirstInstruction->getIterator(),
+                 std::next(LastInstruction->getIterator()));
+  MI.eraseFromParent();
+  return true;
+}
+
+static bool Build_MUL16_rp_rp_S2(const RL78InstrInfo *II,
+                                 llvm::MachineBasicBlock *BB,
+                                 llvm::MachineInstr &MI, llvm::DebugLoc &DL) {
+#define MDUC 0x00E8
+#define MDAL 0xFFFF0
+#define MDAH 0xFFFF2
+#define MDBL 0xFFFF6
+  //  push  psw
+  //  di
+  //  clrb  !%lo16(MDUC)
+  //  movw  MDAL, ax
+  //  movw  ax, bc
+  //  movw  MDAH, ax
+  //  nop
+  //  movw  ax, MDBL
+  //  pop  psw ;
+  //  MDUC -> F00E8, MDAL -> FFFF0, MDAH -> FFFF2, MDBL -> FFFF6
+    MachineInstrBuilder FirstInstruction, LastInstruction;
+
+  // PSW register contents are saved to the stack.
+  FirstInstruction = BuildMI(*BB, MI, DL, II->get(RL78::PUSH_cc));
+
+  // Maskable interrupt acknowledgment by vectored interrupt is disabled (with
+  // the interrupt enable flag (IE) cleared (0)).
+  BuildMI(*BB, MI, DL, II->get(RL78::DI));
+
+  // 0 is transferred to the MDUC address.
+  BuildMI(*BB, MI, DL, II->get(RL78::CLRB_abs16)).addImm(MDUC);
+
+  // AX register contents is transferred to the MDAL address.
+  BuildMI(*BB, MI, DL, II->get(RL78::STORE16_sfrp_rp))
+      .addImm(MDAL)
+      .addReg(RL78::RP0, RegState::Kill);
+
+  // Op2 register contents is transferred to the AX register.
+  if (MI.getOperand(2).getReg() != RL78::RP0)
+    BuildMI(*BB, MI, DL, II->get(RL78::MOVW_AX_rp), RL78::RP0)
+        .addReg(MI.getOperand(2).getReg(), RegState::Kill);
+
+  // AX register contents is transferred to the MDAH address.
+  BuildMI(*BB, MI, DL, II->get(RL78::STORE16_sfrp_rp))
+      .addImm(MDAH)
+      .addReg(RL78::RP0, RegState::Kill);
+
+  // Only the time is consumed without processing.
+  BuildMI(*BB, MI, DL, II->get(RL78::NOP));
+
+  // MDBL address contents is transferred to the AX register.
+  BuildMI(*BB, MI, DL, II->get(RL78::LOAD16_rp_sfrp), RL78::RP0).addImm(MDBL);
+
+  // Each flag is replaced with stack data.
+  LastInstruction = BuildMI(*BB, MI, DL, II->get(RL78::POP_cc));
+
+  finalizeBundle(*BB, FirstInstruction->getIterator(),
+                 std::next(LastInstruction->getIterator()));
+  MI.eraseFromParent();
+
+  return true;
+}
+
+bool RL78InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
+  MachineBasicBlock *BB = MI.getParent();
+  DebugLoc DL = BB->findDebugLoc(MI);
+  //      shl b, 0x05
+  //      sknc
+  //      Op ax, 0x08
+  //      shl b, 0x01
+  //      sknc
+  //      Op ax, 0x04
+  //      shl b, 0x01
+  //      sknc
+  //      Op ax, 0x02
+  //      cmp0 b
+  //      skz
+  //      Op ax, 0x01 or optimized variant
+  bool Is8Bit = false;
+  unsigned opcode;
+  unsigned OpSize = 0;
+  unsigned OpInstrCount = 1;
+  switch (MI.getOpcode()) {
+  case RL78::SHLW_rp_rp:
+    opcode = RL78::SHLW_rp_imm;
+    break;
+  case RL78::SHRW_rp_rp:
+    opcode = RL78::SHRW_rp_i;
+    break;
+  case RL78::SARW_rp_rp:
+    opcode = RL78::SARW_rp_i;
+    break;
+  case RL78::SHL_r_r:
+    Is8Bit = true;
+    opcode = RL78::SHL_r_imm;
+    break;
+  case RL78::SHR_r_r:
+    Is8Bit = true;
+    opcode = RL78::SHR_r_i;
+    break;
+  case RL78::SAR_r_r:
+    Is8Bit = true;
+    opcode = RL78::SAR_r_i;
+    break;
+  case RL78::ROTL16_rp_rp:
+    opcode = RL78::ROTL16_rp_rp;
+    // 2 (MOV1_cy_r) + 2 (ROLWC_rp_1)
+    OpInstrCount = 2;
+    OpSize = 4;
+    break;
+  case RL78::ROTR16_rp_rp:
+    opcode = RL78::ROTR16_rp_rp;
+    // 2 (SHRW_rp_i) + 2 (SHRW_rp_i)
+    OpInstrCount = 2;
+    OpSize = 4;
+    break;
+  case RL78::ROTL_rp_rp:
+    Is8Bit = true;
+    opcode = RL78::ROL_r_1;
+    OpSize = 2;
+    break;
+  case RL78::ROTR_rp_rp:
+    Is8Bit = true;
+    opcode = RL78::ROR_r_1;
+    OpSize = 2;
+    break;
+  case RL78::ADDE_rp_rp:
+      return BuildADDE_SUBBE_rp_rp(this, BB, MI, DL, RL78::INCW_rp, RL78::ADDW_rp_rp);
+  case RL78::SUBE_rp_rp:
+      return BuildADDE_SUBBE_rp_rp(this, BB, MI, DL, RL78::DECW_rp, RL78::SUBW_rp_rp);
+  case RL78::MUL16_rp_rp_S1_S2:
+      return Build_MUL16_rp_rp_S2(this, BB, MI, DL);
+  default:
+    return false;
+    break;
+  }
+
+  Register Rd;
+  MachineInstrBuilder FirstInstruction, LastInstruction, IgnoredInstruction;
+  assert((MI.getOperand(2).isReg() && MI.getOperand(2).getReg() == RL78::R3) &&
+         "Op2 != B");
+  if (Is8Bit) {
+    assert(
+        (MI.getOperand(0).isReg() && MI.getOperand(0).getReg() == RL78::R1) &&
+        "Op0 != A");
+    Rd = RL78::R1;
+    BuildUnrolledShiftStep(this, BB, MI, DL, opcode, Rd, 6, 4, OpSize,
+                           OpInstrCount, FirstInstruction, IgnoredInstruction);
+  } else {
+    assert(
+        (MI.getOperand(0).isReg() && MI.getOperand(0).getReg() == RL78::RP0) &&
+        "Op0 != AX");
+
+    Rd = RL78::RP0;
+    BuildUnrolledShiftStep(this, BB, MI, DL, opcode, Rd, 5, 8, OpSize,
+                           OpInstrCount, FirstInstruction, IgnoredInstruction);
+    BuildUnrolledShiftStep(this, BB, MI, DL, opcode, Rd, 1, 4, OpSize,
+                           OpInstrCount, IgnoredInstruction,
+                           IgnoredInstruction);
+  }
+  BuildUnrolledShiftStep(this, BB, MI, DL, opcode, Rd, 1, 2, OpSize,
+                         OpInstrCount, IgnoredInstruction, IgnoredInstruction);
+  BuildUnrolledShiftStep(this, BB, MI, DL, opcode, Rd, 1, 1, OpSize,
+                         OpInstrCount, IgnoredInstruction, LastInstruction);
+
+  finalizeBundle(*BB, FirstInstruction->getIterator(),
+                 std::next(LastInstruction->getIterator()));
+  MI.eraseFromParent();
+  return true;
+}
+
 static RL78CC::CondCodes GetOppositeBranchCondition(RL78CC::CondCodes CC) {
   switch (CC) {
   case RL78CC::RL78CC_C:
@@ -134,7 +407,7 @@ static RL78CC::CondCodes GetOppositeBranchCondition(RL78CC::CondCodes CC) {
 static bool isUncondBranchOpcode(int Opc) { return Opc == RL78::BR; }
 
 static bool isCondBranchOpcode(int Opc) {
-  return (Opc == RL78::BRCC) || (Opc == RL78::BTBF) || (Opc == RL78::BTBF_mem);
+  return (Opc == RL78::BRCC) || (Opc == RL78::BTBF) || (Opc == RL78::BTBF_mem) || (Opc == RL78::BTBF_sfr);
 }
 
 static bool isIndirectBranchOpcode(int Opc) { return Opc == RL78::BR_AX; }
@@ -290,7 +563,7 @@ unsigned RL78InstrInfo::removeBranch(MachineBasicBlock &MBB,
 
     if ((I->getOpcode() != RL78::BR) && (I->getOpcode() != RL78::BR_AX) &&
         (I->getOpcode() != RL78::BTBF) && (I->getOpcode() != RL78::BTBF_mem) &&
-        (I->getOpcode() != RL78::BRCC))
+        (I->getOpcode() != RL78::BTBF_sfr) && (I->getOpcode() != RL78::BRCC))
       break; // Not a branch.
 
     I->eraseFromParent();
@@ -311,6 +584,8 @@ void RL78InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                 MachineBasicBlock::iterator I,
                                 const DebugLoc &DL, MCRegister DestReg,
                                 MCRegister SrcReg, bool KillSrc) const {
+#define MACRHigh 0xFFF2
+#define MACRLow 0xFFF0
   // 8 bit copy:
   if (RL78::RL78RegRegClass.contains(DestReg, SrcReg)) {
     // mov A, <...>
@@ -460,13 +735,78 @@ void RL78InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
           .addReg(RL78::R1, RegState::Kill)
           .addReg(SrcReg, RegState::Kill);
     }
-  } else
+  } 
+  else if (SrcReg == RL78::MACRH || SrcReg == RL78::MACRL) {
+    unsigned SrcAddr = SrcReg == RL78::MACRH ? MACRHigh : MACRLow;
+    if (DestReg == RL78::RP0)
+        BuildMI(MBB, I, DL, get(RL78::LOAD16_rp_abs16), RL78::RP0)
+            .addImm(SrcAddr);
+    else {
+      BuildMI(MBB, I, DL, get(RL78::XCHW_AX_rp), RL78::RP0)
+          .addReg(DestReg, RegState::Define)
+          .addReg(RL78::RP0, RegState::Kill)
+          .addReg(DestReg, RegState::Kill);
+      BuildMI(MBB, I, DL, get(RL78::LOAD16_rp_abs16), RL78::RP0)
+            .addImm(SrcAddr);
+      BuildMI(MBB, I, DL, get(RL78::XCHW_AX_rp), RL78::RP0)
+          .addReg(DestReg, RegState::Define)
+          .addReg(RL78::RP0, RegState::Kill)
+          .addReg(DestReg, RegState::Kill);
+    }
+  } 
+  else if (DestReg == RL78::MACRH || DestReg == RL78::MACRL) {
+      unsigned DestAddr = DestReg == RL78::MACRH ? MACRHigh : MACRLow;
+    if (SrcReg == RL78::RP0)
+        BuildMI(MBB, I, DL, get(RL78::STORE16_abs16_rp))
+            .addImm(DestAddr)
+            .addReg(RL78::RP0, getKillRegState(KillSrc));
+    else {
+      BuildMI(MBB, I, DL, get(RL78::XCHW_AX_rp), RL78::RP0)
+          .addReg(SrcReg, RegState::Define)
+          .addReg(RL78::RP0, RegState::Kill)
+          .addReg(SrcReg, RegState::Kill);
+      BuildMI(MBB, I, DL, get(RL78::STORE16_abs16_rp))
+            .addImm(DestAddr)
+            .addReg(RL78::RP0);
+      BuildMI(MBB, I, DL, get(RL78::XCHW_AX_rp), RL78::RP0)
+          .addReg(SrcReg, RegState::Define)
+          .addReg(RL78::RP0, RegState::Kill)
+          .addReg(SrcReg, RegState::Kill);
+    }
+  }  
+  else
     llvm_unreachable("Unknown copy!");
   // MovMI->addRegisterDefined(DestReg, TRI);
 }
 
 unsigned RL78InstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
+
+  if (MI.isInlineAsm())
+    return 128;
+
+  switch (MI.getOpcode()) {
+    // Worst case scenario for BRCC is SK_cc + BR_rel16 =
+    // 2 + 3 = 5. And for BT/BF is MOV1 + 5 = 8.
+  case RL78::BRCC:
+    return 5;
+  case RL78::BTBF:
+  case RL78::BTBF_mem:
+    return 8;
+  case RL78::BR:
+    return 4;
+  case TargetOpcode::BUNDLE: {
+    unsigned Size = 0;
+    MachineBasicBlock::const_instr_iterator I = MI.getIterator();
+    MachineBasicBlock::const_instr_iterator E = MI.getParent()->instr_end();
+    while (++I != E && I->isInsideBundle()) {
+      assert(!I->isBundle() && "No nested bundle!");
+      Size += getInstSizeInBytes(*I);
+    }
+    return Size;
+  }
+  default:
   return MI.getDesc().getSize();
+  }
 }
 
 /// Constants defining how certain sequences should be outlined.
@@ -539,6 +879,14 @@ RL78InstrInfo::getOutliningType(MachineBasicBlock::iterator &MIT,
   // Don't allow debug values to impact outlining type.
   if (MI.isDebugInstr() || MI.isIndirectDebugValue())
     return outliner::InstrType::Invisible;
+
+  // For now, disable outlining bundled instructions, since the outliner does not copy them 
+  // as we expect.
+  // TODO: investigate why is this happening?
+  // One possible reason is the usage of the simple iterator instead of the
+  // instr_iterator when creating the outlined function instructions.
+  if(MI.isInsideBundle() || MI.getOpcode() == TargetOpcode::BUNDLE)
+      return outliner::InstrType::Illegal;
 
   // At this point, KILL instructions don't really tell us much so we can go
   // ahead and skip over them.
@@ -646,6 +994,11 @@ MachineInstr *RL78InstrInfo::foldMemoryOperandImpl(
       (MI.getOpcode() != RL78::CLRB_r))
     return nullptr;
 
+  //In cases like: undef %39.sub_hi:rl78rpregs = MOV_r_imm 0
+  //we need to do a +1 to get the correst stack address.
+  assert(MI.getOperand(0).isReg());
+  unsigned subReg = (MI.getOperand(0).getSubReg() == RL78::sub_hi)? 1 : 0;
+
   int64_t Imm;
   switch (MI.getOpcode()) {
   case RL78::MOV_r_imm:
@@ -661,7 +1014,7 @@ MachineInstr *RL78InstrInfo::foldMemoryOperandImpl(
   return BuildMI(*MI.getParent(), InsertPt, MI.getDebugLoc(),
                  get(RL78::STORE8_stack_slot_imm))
       .addFrameIndex(FrameIndex)
-      .addImm(0)
+      .addImm(subReg)
       .addImm(Imm);
 }
 

@@ -797,8 +797,9 @@ Expr ScriptParser::readAssert() {
   expect(")");
 
   return [=] {
-    if (!e().getValue())
-      errorOrWarn(msg);
+    if (config->noinhibitAssert)
+      if (!e().getValue())
+        errorOrWarn(msg);
     return script->getDot();
   };
 }
@@ -812,10 +813,8 @@ constexpr std::pair<const char *, unsigned> typeMap[] = {
 #undef ECase
 
 // Tries to read the special directive for an output section definition which
-// can be one of following: "(NOLOAD)", "(COPY)", "(INFO)", "(OVERLAY)", and
-// "(TYPE=<value>)".
-// Tok1 and Tok2 are next 2 tokens peeked. See comment for
-// readSectionAddressType below.
+// can be one of following: "(NOLOAD)", "(COPY)", "(INFO)" or "(OVERLAY)".
+// Tok1 and Tok2 are next 2 tokens peeked. See comment for readSectionAddressType below.
 bool ScriptParser::readSectionDirective(OutputSection *cmd, StringRef tok1, StringRef tok2) {
   if (tok1 != "(")
     return false;

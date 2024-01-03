@@ -113,7 +113,7 @@ static cl::opt<bool>
 
 static cl::opt<bool>
 // 2023/04/07 KS Modified for RL78
-    EnableStoreMerging("combiner-store-merging", cl::Hidden, cl::init(false),//TODO investigate why does it handle consecutive stores badly when using negative stack offsets
+    EnableStoreMerging("combiner-store-merging", cl::Hidden, cl::init(true),
                        cl::desc("DAG combiner enable merging multiple stores "
                                 "into a wider store"));
 

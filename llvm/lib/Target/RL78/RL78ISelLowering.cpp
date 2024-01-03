@@ -663,7 +663,7 @@ SDValue RL78TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     else
       Callee =
           DAG.getTargetGlobalAddress(G->getGlobal(), SDLoc(G), MVT::i16,
-                                     G->getOffset(), RL78MCExpr::VK_RL78_LOWW);
+                                     G->getOffset(), RL78MCExpr::VK_RL78_None);
   }
   // else if (ExternalSymbolSDNode *E = dyn_cast<ExternalSymbolSDNode>(Callee))
   //    Callee = DAG.getTargetExternalSymbol(E->getSymbol(), MVT::i16);
@@ -1037,14 +1037,14 @@ static void AllocateMultiPartArgument(unsigned ValNo, MVT ValVT, MVT LocVT,
   }
 }
 
-static void AllocateMultiPartReturn(unsigned ValNo, MVT ValVT, MVT LocVT,
+static void AllocateMultiPartReturn(MVT ValVT, MVT LocVT,
                                     CCValAssign::LocInfo LocInfo,
                                     ISD::ArgFlagsTy ArgFlags, CCState &State,
                                     unsigned int partCount) {
 
   // Handle far pointers.
   if (ArgFlags.isPointer() && ArgFlags.getPointerAddrSpace() == RL78AS::Far) {
-    AllocateFarPointer(ValNo, ValVT, State, partCount, true);
+    AllocateFarPointer(0, ValVT, State, partCount, true);
     return;
   }
 
@@ -1054,7 +1054,7 @@ static void AllocateMultiPartReturn(unsigned ValNo, MVT ValVT, MVT LocVT,
     unsigned Reg = RL78::NoRegister;
     if ((partCount == 1) && (Reg = State.AllocateReg(RL78::R1))) {
       // Allocate to A.
-      State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
+      State.addLoc(CCValAssign::getReg(0, ValVT, Reg, LocVT, LocInfo));
       return;
     }
     if (partCount == 2) {
@@ -1062,15 +1062,15 @@ static void AllocateMultiPartReturn(unsigned ValNo, MVT ValVT, MVT LocVT,
       if (!State.isAllocated(RL78::RP0)) {
         State.AllocateReg(RL78::RP0);
         State.addLoc(
-            CCValAssign::getReg(ValNo + 1, ValVT, RL78::R1, LocVT, LocInfo));
+            CCValAssign::getReg(1, ValVT, RL78::R1, LocVT, LocInfo));
         State.addLoc(
-            CCValAssign::getReg(ValNo, ValVT, RL78::R0, LocVT, LocInfo));
+            CCValAssign::getReg(0, ValVT, RL78::R0, LocVT, LocInfo));
         return;
       }
     }
     if (partCount == 3) {
       // Allocate to C-AX.
-      if (allocate3(RL78::R2, RL78::R1, RL78::R0, ValNo, ValVT, LocVT, LocInfo,
+      if (allocate3(RL78::R2, RL78::R1, RL78::R0, 0, ValVT, LocVT, LocInfo,
                     State))
         return;
     }
@@ -1081,13 +1081,13 @@ static void AllocateMultiPartReturn(unsigned ValNo, MVT ValVT, MVT LocVT,
         State.AllocateReg(RL78::RP2);
         State.AllocateReg(RL78::RP0);
         State.addLoc(
-            CCValAssign::getReg(ValNo, ValVT, RL78::R0, LocVT, LocInfo));
+            CCValAssign::getReg(0, ValVT, RL78::R0, LocVT, LocInfo));
         State.addLoc(
-            CCValAssign::getReg(ValNo + 1, ValVT, RL78::R1, LocVT, LocInfo));
+            CCValAssign::getReg(1, ValVT, RL78::R1, LocVT, LocInfo));
         State.addLoc(
-            CCValAssign::getReg(ValNo + 2, ValVT, RL78::R2, LocVT, LocInfo));
+            CCValAssign::getReg(2, ValVT, RL78::R2, LocVT, LocInfo));
         State.addLoc(
-            CCValAssign::getReg(ValNo + 3, ValVT, RL78::R3, LocVT, LocInfo));
+            CCValAssign::getReg(3, ValVT, RL78::R3, LocVT, LocInfo));
         return;
       }
     }
@@ -1098,7 +1098,7 @@ static void AllocateMultiPartReturn(unsigned ValNo, MVT ValVT, MVT LocVT,
     unsigned Reg = RL78::NoRegister;
     if ((partCount == 1) && (Reg = State.AllocateReg(RL78::RP0))) {
       // Allocate to AX.
-      State.addLoc(CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
+      State.addLoc(CCValAssign::getReg(0, ValVT, Reg, LocVT, LocInfo));
       return;
     }
     if (partCount == 2) {
@@ -1107,9 +1107,9 @@ static void AllocateMultiPartReturn(unsigned ValNo, MVT ValVT, MVT LocVT,
         State.AllocateReg(RL78::RP2);
         State.AllocateReg(RL78::RP0);
         State.addLoc(
-            CCValAssign::getReg(ValNo, ValVT, RL78::RP0, LocVT, LocInfo));
+            CCValAssign::getReg(0, ValVT, RL78::RP0, LocVT, LocInfo));
         State.addLoc(
-            CCValAssign::getReg(ValNo + 1, ValVT, RL78::RP2, LocVT, LocInfo));
+            CCValAssign::getReg(1, ValVT, RL78::RP2, LocVT, LocInfo));
         return;
       }
     }
@@ -1152,17 +1152,18 @@ void RL78TargetLowering::AnalyzeCCRLFormalOperands(
 template <typename T>
 void RL78TargetLowering::AnalyzeCCRLReturnOperands(
     CCState &State, const SmallVectorImpl<T> &Ins) const {
-  std::vector<std::vector<T>> args;
-  GroupArgumentParts(args, Ins);
+  std::vector<T> ret;
+  size_t partCount = Ins.size();
+  if (partCount == 0)
+    return;
 
-  size_t opCounter = 0;
-  for (size_t i = 0, e = args.size(); i != e; i++) {
-    MVT ArgVT = args[i][0].VT;
-    ISD::ArgFlagsTy ArgFlags = args[i][0].Flags;
-    AllocateMultiPartReturn(opCounter, ArgVT, ArgVT, CCValAssign::Full,
-                            ArgFlags, State, args[i].size());
-    opCounter += args[i].size();
-  }
+  for (size_t i = 0; i < partCount; ++i)
+    ret.push_back(Ins[i]);
+
+  MVT ArgVT = ret[0].VT;
+  ISD::ArgFlagsTy ArgFlags = ret[0].Flags;
+  AllocateMultiPartReturn(ArgVT, ArgVT, CCValAssign::Full,
+                          ArgFlags, State, ret.size());
 }
 
 // FIXME? Maybe this could be a TableGen attribute on some registers and
@@ -1179,30 +1180,6 @@ RL78TargetLowering::getRegisterByName(const char *RegName, LLT VT,
                      .Case("R5", RL78::R5)
                      .Case("R6", RL78::R6)
                      .Case("R7", RL78::R7)
-                     .Case("R8", RL78::R8)
-                     .Case("R9", RL78::R9)
-                     .Case("R10", RL78::R10)
-                     .Case("R11", RL78::R11)
-                     .Case("R12", RL78::R12)
-                     .Case("R13", RL78::R13)
-                     .Case("R14", RL78::R14)
-                     .Case("R15", RL78::R15)
-                     .Case("R16", RL78::R16)
-                     .Case("R17", RL78::R17)
-                     .Case("R18", RL78::R18)
-                     .Case("R19", RL78::R19)
-                     .Case("R20", RL78::R20)
-                     .Case("R21", RL78::R21)
-                     .Case("R22", RL78::R22)
-                     .Case("R23", RL78::R23)
-                     .Case("R24", RL78::R24)
-                     .Case("R25", RL78::R25)
-                     .Case("R26", RL78::R26)
-                     .Case("R27", RL78::R27)
-                     .Case("R28", RL78::R28)
-                     .Case("R29", RL78::R29)
-                     .Case("R30", RL78::R30)
-                     .Case("R31", RL78::R31)
                      .Default(0);
 
   if (Reg)
@@ -1432,11 +1409,20 @@ RL78TargetLowering::RL78TargetLowering(const TargetMachine &TM,
     // UMUL_LOHI for i8 see UMUL_LOHI_16_r_r.
     setOperationAction(ISD::UMUL_LOHI, MVT::i16, Legal);
     setOperationAction(ISD::SMUL_LOHI, MVT::i16, Legal);
-    // Custom lower UDIVREM (DIVWU instruction).
-    setOperationAction(ISD::UDIVREM, MVT::i32, Custom);
+
+    setOperationAction(ISD::UDIVREM, MVT::i16, Legal);
+    // Set to legal so DivRemPairs leaves it alone.
+    setOperationAction(ISD::UDIVREM, MVT::i32, Legal);
     // Promote to i16.
     setOperationAction(ISD::UDIV, MVT::i8, Promote);
     setOperationAction(ISD::SDIV, MVT::i8, Promote);
+
+    setTargetDAGCombine(ISD::MUL);
+    // So we can handle combining into divwu.
+    setTargetDAGCombine(ISD::UDIV);
+    setTargetDAGCombine(ISD::UREM);
+    // To match MACH/MACHU.
+    setTargetDAGCombine(ISD::ADD);
   } else {
     //
     setOperationAction(ISD::UDIV, MVT::i16, LibCall);
@@ -1447,6 +1433,9 @@ RL78TargetLowering::RL78TargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::UDIV, MVT::i8, Custom);
     setOperationAction(ISD::SDIV, MVT::i8, Custom);
   }
+
+  setTargetDAGCombine(ISD::TRUNCATE);
+
   // No signed DIV/MOD available on RL78 do a libcall.
   setOperationAction(ISD::SREM, MVT::i8, Promote);
   setOperationAction(ISD::SDIV, MVT::i16, LibCall);
@@ -1484,6 +1473,8 @@ RL78TargetLowering::RL78TargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::STACKSAVE, MVT::Other, Expand);
   setOperationAction(ISD::STACKRESTORE, MVT::Other, Expand);
   setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i16, Expand);
+
+  setTargetDAGCombine(ISD::BRCOND);
 
   setStackPointerRegisterToSaveRestore(RL78::SPreg);
 
@@ -1599,6 +1590,8 @@ const char *RL78TargetLowering::getTargetNodeName(unsigned Opcode) const {
     return "RL78ISD::SEL_RB";
   case RL78ISD::CMP:
     return "RL78ISD::CMP";
+  case RL78ISD::LOWCMP:
+    return "RL78ISD::LOWCMP";
   case RL78ISD::CALL:
     return "RL78ISD::CALL";
   case RL78ISD::CALL_FP:
@@ -1655,6 +1648,10 @@ const char *RL78TargetLowering::getTargetNodeName(unsigned Opcode) const {
     return "RL78ISD::ORMEM";
   case RL78ISD::XORMEM:
     return "RL78ISD::XORMEM";
+  case RL78ISD::MACH:
+    return "RL78ISD::MACH";
+  case RL78ISD::MACHU:
+    return "RL78ISD::MACHU";
   }
   return nullptr;
 }
@@ -1755,6 +1752,12 @@ SDValue RL78TargetLowering::makeAddress(SDValue Op, SelectionDAG &DAG) const {
                                                   RL78MCExpr::VK_RL78_SADW);
       return DAG.getNode(RL78ISD::LOW8, DL, VT, Result);
     }
+  }
+  else {
+    //FIXME: temp fix for correct plt selection until we get rid of the plt.
+    SDValue Result = DAG.getTargetGlobalAddress(GV, SDLoc(Op), VT, Offset,
+                                                RL78MCExpr::VK_RL78_FUNCTION);
+    return DAG.getNode(RL78ISD::LOW16, SDLoc(Op), VT, Result);
   }
 
   SDValue Result = DAG.getTargetGlobalAddress(GV, SDLoc(Op), VT, Offset,
@@ -2513,13 +2516,21 @@ SDValue RL78TargetLowering::LowerIntrinsicWithChain(SDValue Op,
       SDNode *MN =
           DAG.getMachineNode(RL78::MOVW_rp_stack_slot, DL, VT, TFI, Imm);
       addrOp = SDValue(MN, 0);
+    } else if (ConstantSDNode *CN =
+                   dyn_cast<ConstantSDNode>(Op.getOperand(2))) {
+      uint64_t imm = CN->getZExtValue() & 0xFFFF;
+      if (imm < 0xFF00) {
+        SDNode *MN = DAG.getMachineNode(
+            RL78::MOVW_rp_imm, DL, Op.getOperand(2).getValueType(),
+                                        DAG.getTargetConstant(imm, DL, MVT::i16));
+        addrOp = SDValue(MN, 0);
+      }
     }
     SDValue loadToCY = DAG.getNode(RL78ISD::LOAD1TOCY, DL, MVT::Other,
                                    Op.getOperand(0), Op.getOperand(3), addrOp);
     SDValue notCY = DAG.getNode(RL78ISD::NOT1CY, DL, MVT::Other, loadToCY);
     SDValue store1FromCY = DAG.getNode(RL78ISD::STORE1FROMCY, DL, MVT::Other,
                                        notCY, Op.getOperand(3), addrOp);
-    // DAG.dump();
     return store1FromCY;
   }
   }
@@ -2750,6 +2761,265 @@ static SDValue LowerLOW16(SDValue Op, SelectionDAG &DAG) {
 
   // SDValue Result = DAG.getTargetGlobalAddress(GV, SDLoc(Op), VT, Offset);
   return Op;
+}
+
+SDValue RL78TargetLowering::PerformBRCONDCombine(SDNode *N, DAGCombinerInfo &DCI) const {
+  // TODO: revisit this in GCC-1920
+  if (N->getOpcode() == ISD::BRCOND &&
+      N->getOperand(1)->getOpcode() == ISD::SETCC &&
+      N->getOperand(1)->getOperand(0).getValueType() == MVT::i32) {
+    // Combine:
+    // i1 = setcc t5, Imm, CC
+    // ch = brcond t0, t8,
+    // to:
+    // CMP HIGHW(t5), HIGW(Imm)
+    // SKNZ
+    // CMP LOWW(t5), LOWW(Imm)
+    // ch = brcond t0, t8,
+
+    SDLoc dl(N);
+    SDValue SetCC = N->getOperand(1);
+    SDValue Chain = N->getOperand(0);
+    SDValue Dest = N->getOperand(2);
+
+    SDValue LoIndex = DCI.DAG.getConstant(0, dl, MVT::i16);
+    SDValue HiIndex = DCI.DAG.getConstant(1, dl, MVT::i16);
+
+    SDValue LowLHS = DCI.DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i16,
+                                     SetCC->getOperand(0), LoIndex);
+    SDValue HighLHS = DCI.DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i16,
+                                      SetCC->getOperand(0), HiIndex);
+    SDValue LowRHS = DCI.DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i16,
+                                     SetCC->getOperand(1), LoIndex);
+    SDValue HighRHS = DCI.DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i16,
+                                      SetCC->getOperand(1), HiIndex);
+    ISD::CondCode CC =
+        cast<CondCodeSDNode>(N->getOperand(1)->getOperand(2))->get();
+
+    SDValue HighCompare =  DCI.DAG.getConstant(IntCondCCodeSign(CC), dl, MVT::i8);
+    SDValue Cmp = DCI.DAG.getNode(RL78ISD::CMP, dl, MVT::Glue, HighLHS, HighRHS,
+                                  HighCompare);
+    SDValue LowCmp = DCI.DAG.getNode(RL78ISD::LOWCMP, dl, MVT::Glue, LowLHS,
+                                     LowRHS, Cmp);
+
+    SDValue TargetCC = DCI.DAG.getConstant(IntCondCCodeToICC(CC), dl, MVT::i8);
+    return DCI.DAG.getNode(RL78ISD::BRCC, dl, MVT::Other, Chain, Dest, TargetCC,
+                           LowCmp);
+  }
+
+  return SDValue();
+}
+
+static SDValue AsMULHCandidate(SDValue op, ISD::NodeType opcode,
+                               SelectionDAG &DAG, SDLoc dl) {
+  assert(opcode == ISD::ZERO_EXTEND || opcode == ISD::SIGN_EXTEND);
+  if (op->getOpcode() == ISD::Constant) {
+    if (opcode == ISD::ZERO_EXTEND &&
+        cast<ConstantSDNode>(op)->getZExtValue() <= UINT16_MAX)
+      return DAG.getConstant(cast<ConstantSDNode>(op)->getZExtValue(), dl,
+                             MVT::i16);
+
+    if (opcode == ISD::SIGN_EXTEND &&
+        cast<ConstantSDNode>(op)->getSExtValue() >= INT16_MIN &&
+        cast<ConstantSDNode>(op)->getSExtValue() <= INT16_MAX)
+      return DAG.getConstant(cast<ConstantSDNode>(op)->getSExtValue(), dl,
+                             MVT::i16);
+  }
+  if (op->getOpcode() == opcode &&
+      op.getOperand(0).getValueType() == MVT::i16) {
+    return op.getOperand(0);
+  }
+  return SDValue();
+}
+
+SDValue RL78TargetLowering::PerformMULCombine(SDNode *N,
+                                              DAGCombinerInfo &DCI) const {
+  SDLoc dl(N);
+  ISD::NodeType op = ISD::DELETED_NODE;
+  SDValue RHS, LHS;
+
+  if (N->getOpcode() == ISD::MUL && N->getValueType(0) == MVT::i32) {
+    RHS = AsMULHCandidate(N->getOperand(0), ISD::SIGN_EXTEND, DCI.DAG, dl);
+    LHS = AsMULHCandidate(N->getOperand(1), ISD::SIGN_EXTEND, DCI.DAG, dl);
+    if (RHS && LHS)
+      op = ISD::SMUL_LOHI;
+    else {
+      RHS = AsMULHCandidate(N->getOperand(0), ISD::ZERO_EXTEND, DCI.DAG, dl);
+      LHS = AsMULHCandidate(N->getOperand(1), ISD::ZERO_EXTEND, DCI.DAG, dl);
+      if (RHS && LHS)
+        op = ISD::UMUL_LOHI;
+    }
+  }
+  if (op != ISD::DELETED_NODE) {
+
+    SDValue LoHi = DCI.DAG.getNode(
+        op, dl, DCI.DAG.getVTList(MVT::i16, MVT::i16), RHS, LHS);
+    return DCI.DAG.getNode(ISD::BUILD_PAIR, dl, MVT::i32, LoHi.getValue(0),
+                           LoHi.getValue(1));
+  } else {
+    return SDValue();
+  }
+}
+
+SDValue
+RL78TargetLowering::PerformUDIVREMCombine(SDNode *N, DAGCombinerInfo &DCI,
+                                          ISD::NodeType otherNodeType) const {
+  SDValue Op0 = N->getOperand(0);
+  SDValue Op1 = N->getOperand(1);
+  SDValue combined, div, remainder;
+  unsigned Opcode = N->getOpcode();
+  unsigned DivRemOpc = RL78ISD::DIVWU;
+  EVT VT = Op0.getValueType();
+  SDLoc dl(N);
+
+  if (VT != MVT::i32)
+    return combined;
+
+  SDVTList VTs = DCI.DAG.getVTList(MVT::i16, MVT::i16, MVT::i16, MVT::i16);
+  SDValue high = DCI.DAG.getConstant(1, dl, MVT::i16);
+  SDValue low = DCI.DAG.getConstant(0, dl, MVT::i16);
+  SDValue op0lo = DCI.DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i16,
+                                  N->getOperand(0), low);
+  SDValue op0hi = DCI.DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i16,
+                                  N->getOperand(0), high);
+  SDValue op1lo = DCI.DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i16,
+                                  N->getOperand(1), low);
+  SDValue op1hi = DCI.DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i16,
+                                  N->getOperand(1), high);
+
+  for (SDNode::use_iterator UI = Op0.getNode()->use_begin(),
+                            UE = Op0.getNode()->use_end();
+       UI != UE; ++UI) {
+    SDNode *User = *UI;
+    if (User == N || User->getOpcode() == ISD::DELETED_NODE ||
+        User->use_empty())
+      continue;
+
+    unsigned UserOpc = User->getOpcode();
+    if ((UserOpc == Opcode || UserOpc == otherNodeType ||
+         UserOpc == DivRemOpc) &&
+        User->getOperand(0) == Op0 && User->getOperand(1) == Op1) {
+      if (!combined) {
+        if (UserOpc == otherNodeType) {
+          combined = DCI.DAG.getNode(DivRemOpc, SDLoc(N), VTs, op0lo, op0hi,
+                                     op1lo, op1hi);
+
+          div = DCI.DAG.getNode(ISD::BUILD_PAIR, dl, MVT::i32,
+                                combined.getValue(0), combined.getValue(1));
+          remainder =
+              DCI.DAG.getNode(ISD::BUILD_PAIR, dl, MVT::i32,
+                              combined.getValue(2), combined.getValue(3));
+
+        } else if (UserOpc == DivRemOpc) {
+          combined = SDValue(User, 0);
+        } else {
+          assert(UserOpc == Opcode);
+          continue;
+        }
+      }
+      if (UserOpc == ISD::UDIV)
+        DCI.CombineTo(User, div);
+      else if (UserOpc == ISD::UREM)
+        DCI.CombineTo(User, remainder);
+    }
+  }
+  if (!combined) {
+    // Even if we don't need the other results, using divwu is beneficial.
+    combined =
+        DCI.DAG.getNode(DivRemOpc, SDLoc(N), VTs, op0lo, op0hi, op1lo, op1hi);
+
+    div = DCI.DAG.getNode(ISD::BUILD_PAIR, dl, MVT::i32, combined.getValue(0),
+                          combined.getValue(1));
+    remainder = DCI.DAG.getNode(ISD::BUILD_PAIR, dl, MVT::i32,
+                                combined.getValue(2), combined.getValue(3));
+  }
+
+  return Opcode == ISD::UDIV ? div : remainder;
+}
+
+SDValue RL78TargetLowering::PerformMULADDCombine(SDNode *N,
+                                                 DAGCombinerInfo &DCI) const {
+  SDLoc dl(N);
+  unsigned op = ISD::DELETED_NODE;
+  SDValue MulA, MulB, AddX;
+  // Assume that the multiplication was already combined to (u/s)mul_lohi.
+  if (N->getOpcode() == ISD::ADD && N->getValueType(0) == MVT::i32) {
+    if (N->getOperand(0)->getOpcode() == ISD::BUILD_PAIR &&
+        (N->getOperand(0)->getOperand(0)->getOpcode() == ISD::SMUL_LOHI ||
+         N->getOperand(0)->getOperand(0)->getOpcode() == ISD::UMUL_LOHI)) {
+      op = N->getOperand(0)->getOperand(0)->getOpcode() == ISD::SMUL_LOHI
+               ? RL78ISD::MACH
+               : RL78ISD::MACHU;
+      MulA = N->getOperand(0)->getOperand(0)->getOperand(0);
+      MulB = N->getOperand(0)->getOperand(0)->getOperand(1);
+      AddX = N->getOperand(1);
+    } else if (N->getOperand(1)->getOpcode() == ISD::BUILD_PAIR &&
+               (N->getOperand(1)->getOperand(0)->getOpcode() ==
+                    ISD::SMUL_LOHI ||
+                N->getOperand(1)->getOperand(0)->getOpcode() ==
+                    ISD::UMUL_LOHI)) {
+      op = N->getOperand(1)->getOperand(0)->getOpcode() == ISD::SMUL_LOHI
+               ? RL78ISD::MACH
+               : RL78ISD::MACHU;
+      MulA = N->getOperand(1)->getOperand(0)->getOperand(0);
+      MulB = N->getOperand(1)->getOperand(0)->getOperand(1);
+      AddX = N->getOperand(0);
+    }
+  }
+
+  if (op != ISD::DELETED_NODE && AddX->getOpcode() != ISD::Constant &&
+      AddX->getOpcode() != ISD::LOAD) {
+
+    SDValue high = DCI.DAG.getConstant(1, dl, MVT::i16);
+    SDValue low = DCI.DAG.getConstant(0, dl, MVT::i16);
+    SDValue XLo =
+        DCI.DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i16, AddX, low);
+    SDValue XHi =
+        DCI.DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i16, AddX, high);
+
+    SDValue LoHi = DCI.DAG.getNode(
+        op, dl, DCI.DAG.getVTList(MVT::i16, MVT::i16), XLo, XHi, MulA, MulB);
+    return DCI.DAG.getNode(ISD::BUILD_PAIR, dl, MVT::i32, LoHi.getValue(0),
+                           LoHi.getValue(1));
+  } else {
+    return SDValue();
+  }
+}
+
+SDValue RL78TargetLowering::PerformTruncateCombine(SDNode *N,
+                                                   DAGCombinerInfo &DCI) const {
+  // Trunc (i32 >> 16) to i16 => extract high(i32).
+  if (N->getOpcode() == ISD::TRUNCATE && N->getValueType(0) == MVT::i16 &&
+      N->getOperand(0)->getOpcode() == ISD::SRL &&
+      N->getOperand(0)->getValueType(0) == MVT::i32 &&
+      N->getOperand(0)->getOperand(1)->getOpcode() == ISD::Constant &&
+      N->getOperand(0)->getConstantOperandVal(1) == 16) {
+    SDLoc dl(N);
+    SDValue high = DCI.DAG.getConstant(1, dl, MVT::i16);
+    return DCI.DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i16,
+                           N->getOperand(0)->getOperand(0), high);
+  }
+  return SDValue();
+}
+
+SDValue RL78TargetLowering::PerformDAGCombine(SDNode *N,
+                                              DAGCombinerInfo &DCI) const {
+  switch (N->getOpcode()) {
+  case ISD::BRCOND:
+    return PerformBRCONDCombine(N, DCI);
+  case ISD::MUL:
+      return PerformMULCombine(N, DCI);
+  case ISD::UDIV:
+      return PerformUDIVREMCombine(N, DCI, ISD::UREM);
+  case ISD::UREM:
+      return PerformUDIVREMCombine(N, DCI, ISD::UDIV);
+  case ISD::ADD:
+      return PerformMULADDCombine(N, DCI);
+  case ISD::TRUNCATE:
+      return PerformTruncateCombine(N, DCI);
+  default:
+    return SDValue();
+  }
 }
 
 SDValue RL78TargetLowering::LowerOperation(SDValue Op,
@@ -3693,6 +3963,14 @@ static bool isCCRegDead(MachineInstr &MI) {
   return false;
 }
 
+static bool IsCarryDead(MachineInstr &MI) {
+  for (int i = 0; i < MI.getNumOperands(); i++)
+    if (MI.getOperand(i).isReg() && MI.getOperand(i).getReg() == RL78::CCreg &&
+        MI.getOperand(i).isDead())
+      return true;
+  return false;
+}
+
 MachineBasicBlock *
 RL78TargetLowering::LowerADDE_SUBE_rp_rp(unsigned int opcode, MachineInstr &MI,
                                          MachineBasicBlock *BB) const {
@@ -3706,6 +3984,19 @@ RL78TargetLowering::LowerADDE_SUBE_rp_rp(unsigned int opcode, MachineInstr &MI,
 
   BuildMI(*BB, MI, DL, TII->get(RL78::COPY), RL78::RP0)
       .addReg(Rs1, RegState::Kill);
+
+  if (IsCarryDead(MI) && getTargetMachine().getOptLevel() == CodeGenOpt::Aggressive) {
+    // After changing Op0 and Op1 to RP0, delegate it to expandPostRAPseudo.
+    // Since expandPostRAPseudo is using bundle and we disable outlining of bundles,
+    // we do this only when optimizing for speed.
+    BuildMI(*BB, std::next(MachineBasicBlock::iterator(MI)), DL,
+            TII->get(RL78::COPY), Rd)
+        .addReg(RL78::RP0);
+    MI.getOperand(0).ChangeToRegister(RL78::RP0, true);
+    MI.getOperand(1).ChangeToRegister(RL78::RP0, false);
+    return BB;
+
+  } else {
   BuildMI(*BB, MI, DL, TII->get(RL78::XCH_A_r), RL78::R1)
       .addReg(RL78::R0, RegState::Define)
       .addReg(RL78::R1, RegState::Kill)
@@ -3725,6 +4016,7 @@ RL78TargetLowering::LowerADDE_SUBE_rp_rp(unsigned int opcode, MachineInstr &MI,
 
   MI.eraseFromParent();
   return BB;
+  }
 }
 
 MachineBasicBlock *
@@ -3735,9 +4027,59 @@ RL78TargetLowering::LowerADDE_SUBE_rp_imm(unsigned int opcode, MachineInstr &MI,
   const TargetInstrInfo *TII = MF->getSubtarget<RL78Subtarget>().getInstrInfo();
 
   unsigned Rs1 = MI.getOperand(1).getReg();
+  unsigned Imm = MI.getOperand(2).getImm() & 0xFFFF;
   unsigned ImmLo = MI.getOperand(2).getImm() & 0xFF;
   unsigned ImmHi = ((unsigned)MI.getOperand(2).getImm() >> 8) & 0xFF;
   unsigned Rd = MI.getOperand(0).getReg();
+
+  if (Imm == 0 || Imm == 0xFFFF) {
+    // If the constant is 0 we need to consider only the carry.
+
+    if (IsCarryDead(MI)) {
+      // If the carry is dead, we can use skip + ADDW/INCW instead of ADDC's.
+      MachineFunction::iterator It = std::next(MachineFunction::iterator(BB));
+      const BasicBlock *LLVM_BB = BB->getBasicBlock();
+      MachineBasicBlock *CarryAddMBB = MF->CreateMachineBasicBlock(LLVM_BB);
+      MachineBasicBlock *sinkMBB = MF->CreateMachineBasicBlock(LLVM_BB);
+      MF->insert(It, CarryAddMBB);
+      MF->insert(It, sinkMBB);
+      sinkMBB->splice(sinkMBB->begin(), BB,
+                      std::next(MachineBasicBlock::iterator(MI)), BB->end());
+      sinkMBB->transferSuccessorsAndUpdatePHIs(BB);
+      BB->addSuccessor(CarryAddMBB);
+      BB->addSuccessor(sinkMBB);
+      CarryAddMBB->addSuccessor(sinkMBB);
+
+      BuildMI(*BB, MI, DL, TII->get(RL78::BRCC))
+          .addMBB(sinkMBB)
+          .addImm(Imm == 0xFFFF ? RL78CC::RL78CC_C : RL78CC::RL78CC_NC);
+
+      unsigned carryOpcode;      
+      if (Imm == 0 && RL78::SUBC_A_imm == opcode ||
+          Imm == 0xFFFF && RL78::ADDC_A_imm == opcode)
+        carryOpcode = RL78::DECW_rp;
+      else if (Imm == 0 && RL78::ADDC_A_imm == opcode ||
+               Imm == 0xFFFF && RL78::SUBC_A_imm == opcode)
+        carryOpcode = RL78::INCW_rp;
+      else
+        llvm_unreachable("Unexpected opcode in LowerADDE_Sube");
+
+      unsigned RPTemp = BB->getParent()->getRegInfo().createVirtualRegister(
+          &RL78::RL78RPRegsRegClass);
+      BuildMI(*CarryAddMBB, CarryAddMBB->end(), DL, TII->get(carryOpcode),
+              RPTemp)
+          .addReg(Rs1);
+
+      BuildMI(*sinkMBB, sinkMBB->begin(), DL, TII->get(RL78::PHI), Rd)
+          .addReg(RPTemp)
+          .addMBB(CarryAddMBB)
+          .addReg(Rs1)
+          .addMBB(BB);
+
+      MI.eraseFromParent();
+      return sinkMBB;
+    }
+  }
 
   BuildMI(*BB, MI, DL, TII->get(RL78::COPY), RL78::RP0)
       .addReg(Rs1, RegState::Kill);
@@ -4000,69 +4342,32 @@ MachineBasicBlock *RL78TargetLowering::LowerMUL8(MachineInstr &MI,
   return BB;
 }
 
-#define MDUC 0x00E8
-#define MDAL 0xFFFF0
-#define MDAH 0xFFFF2
-#define MDBL 0xFFFF6
-
 MachineBasicBlock *RL78TargetLowering::LowerMUL16(MachineInstr &MI,
                                                   MachineBasicBlock *BB) const {
   DebugLoc DL = MI.getDebugLoc();
   MachineFunction *MF = BB->getParent();
   const TargetInstrInfo *TII = MF->getSubtarget<RL78Subtarget>().getInstrInfo();
-  //
-  // BB->dump();
-  //
-  BuildMI(*BB, MI, DL, TII->get(RL78::COPY), RL78::RP2).add(MI.getOperand(2));
-  BuildMI(*BB, MI, DL, TII->get(RL78::COPY), RL78::RP0).add(MI.getOperand(1));
-  //
+
   if (Subtarget->isUseMDA()) {
 
-    //  push  psw
-    //  di
-    //  clrb  !%lo16(MDUC)
-    //  movw  MDAL, ax
-    //  movw  ax, bc
-    //  movw  MDAH, ax
-    //  nop
-    //  movw  ax, MDBL
-    //  pop  psw ;
-    //  MDUC -> F00E8, MDAL -> FFFF0, MDAH -> FFFF2, MDBL -> FFFF6
+    // After changing Op0 and Op1 to RP0, delegate it to expandPostRAPseudo.
+    // If we get here we should not be optimizing for size, so bundles should be
+    // ok.
+    unsigned Rs1 = MI.getOperand(1).getReg();
+    unsigned Rs2 = MI.getOperand(2).getReg();
+    unsigned Rd = MI.getOperand(0).getReg();
+    BuildMI(*BB, MI, DL, TII->get(RL78::COPY), RL78::RP0).addReg(Rs1);
+    BuildMI(*BB, std::next(MachineBasicBlock::iterator(MI)), DL,
+            TII->get(RL78::COPY), Rd)
+        .addReg(RL78::RP0);
+    MI.getOperand(0).ChangeToRegister(RL78::RP0, true);
+    MI.getOperand(1).ChangeToRegister(RL78::RP0, false);
+    return BB;
 
-    // PSW register contents are saved to the stack.
-    BuildMI(*BB, MI, DL, TII->get(RL78::PUSH_cc));
-
-    // Maskable interrupt acknowledgment by vectored interrupt is disabled (with
-    // the interrupt enable flag (IE) cleared (0)).
-    BuildMI(*BB, MI, DL, TII->get(RL78::DI));
-
-    // 0 is transferred to the MDUC address.
-    BuildMI(*BB, MI, DL, TII->get(RL78::CLRB_abs16)).addImm(MDUC);
-
-    // AX register contents is transferred to the MDAL address.
-    BuildMI(*BB, MI, DL, TII->get(RL78::MOVW_sfrp_AX))
-        .addImm(MDAL)
-        .addReg(RL78::RP0, RegState::Kill);
-
-    // BC register contents is transferred to the AX register.
-    BuildMI(*BB, MI, DL, TII->get(RL78::MOVW_AX_rp), RL78::RP0)
-        .addReg(RL78::RP2, RegState::Kill);
-
-    // AX register contents is transferred to the MDAH address.
-    BuildMI(*BB, MI, DL, TII->get(RL78::MOVW_sfrp_AX))
-        .addImm(MDAH)
-        .addReg(RL78::RP0, RegState::Kill);
-
-    // Only the time is consumed without processing.
-    BuildMI(*BB, MI, DL, TII->get(RL78::NOP));
-
-    // MDBL address contents is transferred to the AX register.
-    BuildMI(*BB, MI, DL, TII->get(RL78::MOVW_AX_sfrp), RL78::RP0).addImm(MDBL);
-
-    // Each flag is replaced with stack data.
-    BuildMI(*BB, MI, DL, TII->get(RL78::POP_cc));
-    // BB->dump();
   } else {
+
+    BuildMI(*BB, MI, DL, TII->get(RL78::COPY), RL78::RP2).add(MI.getOperand(2));
+    BuildMI(*BB, MI, DL, TII->get(RL78::COPY), RL78::RP0).add(MI.getOperand(1));
 
     //  xch  a, c
     //  movw  de, ax
@@ -4139,6 +4444,37 @@ MachineBasicBlock *RL78TargetLowering::LowerMUL16(MachineInstr &MI,
   return BB;
 }
 
+
+
+MachineBasicBlock *
+RL78TargetLowering::LowerShiftOrRotateForSpeed(MachineInstr &MI,
+                                               MachineBasicBlock *BB) const {
+  DebugLoc DL = MI.getDebugLoc();
+  MachineFunction *MF = BB->getParent();
+  const TargetInstrInfo *TII = MF->getSubtarget<RL78Subtarget>().getInstrInfo();
+  MachineRegisterInfo &MRI = BB->getParent()->getRegInfo();
+  unsigned Rd = MI.getOperand(0).getReg();
+  unsigned Rs1 = MI.getOperand(1).getReg();
+  unsigned Rs2 = MI.getOperand(2).getReg();
+
+  Register NewRd =
+      MRI.getRegClass(MI.getOperand(0).getReg()) == &RL78::RL78RPRegsRegClass
+          ? RL78::RP0
+          : RL78::R1;
+
+  BuildMI(*BB, MI, DL, TII->get(RL78::COPY), RL78::R3).addReg(Rs2);
+  BuildMI(*BB, MI, DL, TII->get(RL78::COPY), NewRd).addReg(Rs1);
+  BuildMI(*BB, std::next(MachineBasicBlock::iterator(MI)), DL,
+          TII->get(RL78::COPY), Rd)
+      .addReg(NewRd);
+
+  MI.getOperand(0).ChangeToRegister(NewRd, true);
+  MI.getOperand(1).ChangeToRegister(NewRd, false);
+  MI.getOperand(2).ChangeToRegister(RL78::R3, false);
+
+  return BB;
+}
+
 MachineBasicBlock *RL78TargetLowering::LowerShift_Or_LowerRotate_rp_rp(
     MachineInstr &MI, MachineBasicBlock *BB, unsigned int opcode,
     bool isI8) const {
@@ -4210,7 +4546,7 @@ MachineBasicBlock *RL78TargetLowering::LowerShift_Or_LowerRotate_rp_rp(
       .addImm(0);
 
   // if Z flag == 1 => go to sinkMBB.
-  BuildMI(*sinkMBB2, sinkMBB2->end(), DL, TII->get(RL78::B_BZ))
+  BuildMI(*sinkMBB2, sinkMBB2->end(), DL, TII->get(RL78::BRCC))
       .addMBB(sinkMBB)
       .addImm(2);
 
@@ -4234,60 +4570,22 @@ MachineBasicBlock *RL78TargetLowering::LowerShift_Or_LowerRotate_rp_rp(
       .addReg(RV1, RegState::Kill);
 
   switch (opcode) {
-  case RL78::SHLW_rp_rp:
-    // RP0 = SHLW_rp_i RP0, 1.
-    BuildMI(*sinkMBB3, sinkMBB3->end(), DL, TII->get(RL78::SHLW_rp_imm), RP0)
+  case RL78::SHLW_rp_imm:
+  case RL78::SHRW_rp_i:
+  case RL78::SARW_rp_i:
+  case RL78::SHL_r_imm:
+  case RL78::SHR_r_i:
+  case RL78::SAR_r_i:
+    // RP0 = Op RP0, 1.
+    BuildMI(*sinkMBB3, sinkMBB3->end(), DL, TII->get(opcode), RP0)
         .addReg(RP0, RegState::Kill)
         .addImm(1);
     break;
-
-  case RL78::SHRW_rp_rp:
-    // RP0 = SHRW_rp_i RP0, 1.
-    BuildMI(*sinkMBB3, sinkMBB3->end(), DL, TII->get(RL78::SHRW_rp_i), RP0)
-        .addReg(RP0, RegState::Kill)
-        .addImm(1);
-    break;
-
-  case RL78::SARW_rp_rp:
-    // RP0 = SARW_rp_i RP0, 1.
-    BuildMI(*sinkMBB3, sinkMBB3->end(), DL, TII->get(RL78::SARW_rp_i), RP0)
-        .addReg(RP0, RegState::Kill)
-        .addImm(1);
-    break;
-
-  case RL78::SHL_r_r:
-    // RP0 = SHL_r_i RP0, 1.
-    BuildMI(*sinkMBB3, sinkMBB3->end(), DL, TII->get(RL78::SHL_r_imm), RP0)
-        .addReg(RP0, RegState::Kill)
-        .addImm(1);
-    break;
-
-  case RL78::SHR_r_r:
-    // RP0 = SHR_rp_i RP0, 1.
-    BuildMI(*sinkMBB3, sinkMBB3->end(), DL, TII->get(RL78::SHR_r_i), RP0)
-        .addReg(RP0, RegState::Kill)
-        .addImm(1);
-    break;
-
-  case RL78::SAR_r_r:
-    // RP0 = SAR_rp_i RP0, 1.
-    BuildMI(*sinkMBB3, sinkMBB3->end(), DL, TII->get(RL78::SAR_r_i), RP0)
-        .addReg(RP0, RegState::Kill)
-        .addImm(1);
-    break;
-
-  case RL78::ROTL_rp_rp:
-    // RP0 = ROL_r_i RP0, 1.
-    BuildMI(*sinkMBB3, sinkMBB3->end(), DL, TII->get(RL78::ROL_r_1), RP0)
+  case RL78::ROL_r_1:
+  case RL78::ROR_r_1:
+      BuildMI(*sinkMBB3, sinkMBB3->end(), DL, TII->get(opcode), RP0)
         .addReg(RP0, RegState::Kill);
     break;
-
-  case RL78::ROTR_rp_rp:
-    // RP0 = ROR_r_i RP0, 1.
-    BuildMI(*sinkMBB3, sinkMBB3->end(), DL, TII->get(RL78::ROR_r_1), RP0)
-        .addReg(RP0, RegState::Kill);
-    break;
-
   case RL78::ROTL16_rp_rp:
     // MOV1 CY, a.7.
     BuildMI(*sinkMBB3, sinkMBB3->end(), DL, TII->get(RL78::MOV1_cy_r))
@@ -4686,6 +4984,7 @@ MachineBasicBlock *
 RL78TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
                                                 MachineBasicBlock *BB) const {
   // MI.dump();
+  bool OptForSpeed =  getTargetMachine().getOptLevel() == CodeGenOpt::Aggressive;
   switch (MI.getOpcode()) {
   default:
     llvm_unreachable("Unknown instruction!");
@@ -4815,25 +5114,45 @@ RL78TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
   case RL78::MUL16_rp_rp_S1_S2:
     return LowerMUL16(MI, BB);
   case RL78::SHLW_rp_rp:
-    return LowerShift_Or_LowerRotate_rp_rp(MI, BB, RL78::SHLW_rp_rp, false);
+    return OptForSpeed ? LowerShiftOrRotateForSpeed(MI, BB)
+                       : LowerShift_Or_LowerRotate_rp_rp(
+                             MI, BB, RL78::SHLW_rp_imm, false);
   case RL78::SHRW_rp_rp:
-    return LowerShift_Or_LowerRotate_rp_rp(MI, BB, RL78::SHRW_rp_rp, false);
+    return OptForSpeed ? LowerShiftOrRotateForSpeed(MI, BB)
+                       : LowerShift_Or_LowerRotate_rp_rp(
+                             MI, BB, RL78::SHRW_rp_i, false);
   case RL78::SARW_rp_rp:
-    return LowerShift_Or_LowerRotate_rp_rp(MI, BB, RL78::SARW_rp_rp, false);
+    return OptForSpeed ? LowerShiftOrRotateForSpeed(MI, BB)
+                       : LowerShift_Or_LowerRotate_rp_rp(
+                             MI, BB, RL78::SARW_rp_i, false);
   case RL78::SHL_r_r:
-    return LowerShift_Or_LowerRotate_rp_rp(MI, BB, RL78::SHL_r_r, true);
+    return OptForSpeed
+               ? LowerShiftOrRotateForSpeed(MI, BB)
+               : LowerShift_Or_LowerRotate_rp_rp(MI, BB, RL78::SHL_r_imm, true);
   case RL78::SHR_r_r:
-    return LowerShift_Or_LowerRotate_rp_rp(MI, BB, RL78::SHR_r_r, true);
+    return OptForSpeed
+               ? LowerShiftOrRotateForSpeed(MI, BB)
+               : LowerShift_Or_LowerRotate_rp_rp(MI, BB, RL78::SHR_r_i, true);
   case RL78::SAR_r_r:
-    return LowerShift_Or_LowerRotate_rp_rp(MI, BB, RL78::SAR_r_r, true);
+    return OptForSpeed
+               ? LowerShiftOrRotateForSpeed(MI, BB)
+               : LowerShift_Or_LowerRotate_rp_rp(MI, BB, RL78::SAR_r_i, true);
   case RL78::ROTL_rp_rp:
-    return LowerShift_Or_LowerRotate_rp_rp(MI, BB, RL78::ROTL_rp_rp, true);
+    return OptForSpeed
+               ? LowerShiftOrRotateForSpeed(MI, BB)
+               : LowerShift_Or_LowerRotate_rp_rp(MI, BB, RL78::ROL_r_1, true);
   case RL78::ROTR_rp_rp:
-    return LowerShift_Or_LowerRotate_rp_rp(MI, BB, RL78::ROTR_rp_rp, true);
+    return OptForSpeed
+               ? LowerShiftOrRotateForSpeed(MI, BB)
+               : LowerShift_Or_LowerRotate_rp_rp(MI, BB, RL78::ROR_r_1, true);
   case RL78::ROTL16_rp_rp:
-    return LowerShift_Or_LowerRotate_rp_rp(MI, BB, RL78::ROTL16_rp_rp, false);
+    return OptForSpeed
+               ? LowerShiftOrRotateForSpeed(MI, BB)
+               : LowerShift_Or_LowerRotate_rp_rp(MI, BB, RL78::ROTL16_rp_rp, false);
   case RL78::ROTR16_rp_rp:
-    return LowerShift_Or_LowerRotate_rp_rp(MI, BB, RL78::ROTR16_rp_rp, false);
+    return OptForSpeed
+               ? LowerShiftOrRotateForSpeed(MI, BB)
+               : LowerShift_Or_LowerRotate_rp_rp(MI, BB, RL78::ROTR16_rp_rp, false);
   case RL78::UMUL_LOHI_16_r_r:
     return LowerUMUL_LOHI16(MI, BB);
   case RL78::ADD_r_imm:
@@ -4876,6 +5195,7 @@ RL78TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
   case RL78::STORE8_saddr_A:
     return Lower8bitASrc(MI, BB, 1);
   case RL78::LOAD8_r_stack_slot:
+  case RL78::LOAD8_r_sfr:
     return Lower8bitADst(MI, BB);
   case RL78::STORE8_ri_imm:
     // STORE [HL+byte] or STORE word[BC].
@@ -4912,14 +5232,18 @@ RL78TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
                                                    ? RL78::RP2
                                                    : tryGetRP6(BB)));
   case RL78::LOAD16_rp_stack_slot:
+  case RL78::LOAD16_rp_sfrp:
     return Lower16bitAXDst(MI, BB);
   case RL78::ADDW_rp_imm:
     return Lower16BitOpAXAX(MI, BB);
   case RL78::ADDW_rp_memri:
   case RL78::SUBW_rp_memri:
     return Lower16BitOpAXAX(MI, Lower16bitAXSrc(MI, BB, 2, tryGetRP6(BB)));
-  case RL78::ADDW_rp_abs16:
   case RL78::ADDW_rp_rp:
+    if (MI.getOperand(1).getReg() == MI.getOperand(2).getReg())
+      MI.getOperand(2).ChangeToRegister(RL78::RP0, false);
+    return Lower16BitOpAXAX(MI, BB);
+  case RL78::ADDW_rp_abs16:
   case RL78::SUBW_rp_imm:
   case RL78::SUBW_rp_rp:
   case RL78::SUBW_rp_abs16:
@@ -4939,8 +5263,10 @@ RL78TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
     return Lower16bitAXSrc(MI, BB, 2);
   case RL78::STORE16_abs16_rp:
   case RL78::STORE16_saddrp_rp:
+  case RL78::STORE16_sfrp_rp:
     return Lower16bitAXSrc(MI, BB, 1);
   case RL78::STORE8_abs16_r:
+  case RL78::STORE8_sfr_r:
     return Lower8bitASrc(MI, BB, 1);
   case RL78::INC_memri:
   case RL78::DEC_memri:
@@ -5016,6 +5342,39 @@ RL78TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
     return Lower8bitASrc(MI, BB);
   case RL78::CALL_cs_rp:
     return LowerCallCSRP(MI, BB);
+  case RL78::LowCMPW_rp_rp: {
+      if(MI.getOperand(0).getReg() == MI.getOperand(1).getReg()) {
+          MI.removeFromParent();
+          return BB;
+      }
+      // fallthrough
+  }
+  case RL78::LowCMPW_rp_imm: 
+  case RL78::LowCMPW_rp_saddr:
+  case RL78::LowCMPW_rp_abs16:
+  case RL78::LowCMPW_rp_memri:{
+
+    MachineFunction *MF = BB->getParent();
+    DebugLoc DL = MI.getDebugLoc();
+    const TargetInstrInfo *TII =
+        MF->getSubtarget<RL78Subtarget>().getInstrInfo();
+    BuildMI(*BB, MI, DL, TII->get(RL78::COPY), RL78::RP0).add(MI.getOperand(0));
+    MI.getOperand(0).ChangeToRegister(RL78::RP0, false);
+    return BB;
+  }
+  case RL78::MACH_CG:
+  case RL78::MACHU_CG: {
+    MachineFunction *MF = BB->getParent();
+    DebugLoc DL = MI.getDebugLoc();
+    const TargetInstrInfo *TII =
+        MF->getSubtarget<RL78Subtarget>().getInstrInfo();
+    BuildMI(*BB, MI, DL, TII->get(RL78::COPY), RL78::RP0).add(MI.getOperand(4));
+    BuildMI(*BB, MI, DL, TII->get(RL78::COPY), RL78::RP2).add(MI.getOperand(5));
+    MI.getOperand(4).ChangeToRegister(RL78::RP0, false);
+    MI.getOperand(5).ChangeToRegister(RL78::RP2, false);
+    return BB;
+  }
+
   }
 }
 
@@ -5377,34 +5736,6 @@ void RL78TargetLowering::ReplaceNodeResults(SDNode *N,
         LowerLibCall(SDValue(N, 0), DAG, getLibcallName(RTLIB::MUL_I32),
                      N->getOperand(0)->getOpcode() == ISD::SIGN_EXTEND));
     return;
-  case ISD::UDIVREM: {
-    EVT HalfVT = N->getValueType(0).getHalfSizedIntegerVT(*DAG.getContext());
-    SDValue one = DAG.getConstant(1, dl, HalfVT);
-    SDValue zero = DAG.getConstant(0, dl, HalfVT);
-    SDValue op0lo =
-        DAG.getNode(ISD::EXTRACT_ELEMENT, dl, HalfVT, N->getOperand(0), zero);
-    SDValue op0hi =
-        DAG.getNode(ISD::EXTRACT_ELEMENT, dl, HalfVT, N->getOperand(0), one);
-    SDValue op1lo =
-        DAG.getNode(ISD::EXTRACT_ELEMENT, dl, HalfVT, N->getOperand(1), zero);
-    SDValue op1hi =
-        DAG.getNode(ISD::EXTRACT_ELEMENT, dl, HalfVT, N->getOperand(1), one);
-    SDValue divwu = DAG.getNode(RL78ISD::DIVWU, dl,
-                                DAG.getVTList(HalfVT, HalfVT, HalfVT, HalfVT),
-                                op0lo, op0hi, op1lo, op1hi);
-    SDValue resDiv =
-        DAG.getNode(ISD::BUILD_PAIR, dl, N->getValueType(0),
-                    SDValue(divwu.getNode(), 0), SDValue(divwu.getNode(), 1));
-    SDValue resRem =
-        DAG.getNode(ISD::BUILD_PAIR, dl, N->getValueType(1),
-                    SDValue(divwu.getNode(), 2), SDValue(divwu.getNode(), 3));
-    Results.push_back(resDiv);
-    Results.push_back(resRem);
-    // divwu.dump();
-    // N->dump();
-    // DAG.dump();
-    return;
-  }
   case ISD::LRINT:
   case ISD::LROUND: {
     if (N->getOperand(0).getValueType() == MVT::f64) {
@@ -5431,7 +5762,8 @@ static void ReplaceOperand(const SDValue &N, SmallVectorImpl<SDValue> &Results,
   switch (N.getOpcode()) {
   case ISD::ADD: {
     if ((N->getValueType(0) == MVT::i32) &&
-        (N.getOperand(1).getOpcode() == ISD::Constant)) {
+        (N.getOperand(1).getOpcode() == ISD::Constant &&
+         cast<ConstantSDNode>(N.getOperand(1))->getZExtValue() <= UINT16_MAX)) {
       SDValue LoIndex = DAG.getConstant(0, dl, MVT::i16);
       SDValue HiIndex = DAG.getConstant(1, dl, MVT::i16);
       SDValue LoHalf = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i16,
@@ -5441,7 +5773,7 @@ static void ReplaceOperand(const SDValue &N, SmallVectorImpl<SDValue> &Results,
       Results.push_back(DAG.getNode(
           RL78ISD::HI16, dl, MVT::i16, HiHalf, LoHalf,
           DAG.getConstant(
-              cast<ConstantSDNode>(N.getOperand(1))->getZExtValue() & 0xFFFF,
+              cast<ConstantSDNode>(N.getOperand(1))->getZExtValue(),
               dl, MVT::i16)));
       return;
     }

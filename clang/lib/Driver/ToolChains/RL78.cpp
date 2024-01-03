@@ -338,23 +338,27 @@ void rl78::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 	// AddCXXStdlibLibArgs adds -lc++ and -lc++abi in this order. 
 	// e.g. for c++, the order would be -lc++ -lc++abi -lsim -lc -lm -lclang_rt.builtins-rl78
 
+    CmdArgs.push_back("--start-group");
+
+    if (const Arg *Mnano = Args.getLastArg(options::OPT_fnewlib_nano)) {
+      CmdArgs.push_back("-lc_nano");
+    } else {
+      CmdArgs.push_back("-lc");
+      // libg.a is a debugging enabled version of libc.a
+    }
+
     // Adding cxx libraries if cxx and no nostdlib or nodefaultlibs or nostdlibxx
     // options specified
     if (TC.ShouldLinkCXXStdlib(Args))
       TC.AddCXXStdlibLibArgs(Args, CmdArgs);
+
+    CmdArgs.push_back("--end-group");
 
     if (const Arg *Msim = Args.getLastArg(options::OPT_fsim)) {
       CmdArgs.push_back("-lsim");
     } else {
       CmdArgs.push_back("-lnosys");
     }
-	if (const Arg *Mnano = Args.getLastArg(options::OPT_fnewlib_nano)) {
-		CmdArgs.push_back("-lc_nano");
-	}
-	else {
-		CmdArgs.push_back("-lc");
-		//libg.a is a debugging enabled version of libc.a 
-	}
 	//libm.a and libm_nano.a are similar and there is not code size difference
     CmdArgs.push_back("-lm");
     

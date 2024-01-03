@@ -141,7 +141,8 @@ static void insert16BitExchange(MachineInstr &MI, unsigned opIndex,
       // xchw AX, Rx
       // op AX, <...>
       // xchw A, Rx
-      if (!MBB.getParent()->getRegInfo().isReserved(Reg)) {
+      if (!MBB.getParent()->getRegInfo().isReserved(Reg) &&
+          Reg != RL78::MACRH && Reg != RL78::MACRL) {
         BuildMI(MBB, MI, DL, TII->get(RL78::XCHW_AX_rp), RL78::RP0)
             .addReg(Reg, RegState::Define)
             .addReg(RL78::RP0, RegState::Kill)
@@ -215,7 +216,7 @@ static void insertHLExchange(MachineInstr &MI, unsigned opIndex, DebugLoc &DL,
 
 static void updateAAXLiveness(const MachineInstr &MI, bool &isALive,
                               bool &isXLive) {
-  if (MI.isCall() || MI.isKill()) {
+  if (MI.isKill()) {
     isALive = isXLive = true;
     return;
   }
@@ -230,15 +231,35 @@ static void updateAAXLiveness(const MachineInstr &MI, bool &isALive,
         isXLive = isALive = false;
     }
   }
+
   // second mark is(A/AX)Live as true if A/AX isDef
-  if (MI.getNumOperands() > 0 && MI.getOperand(0).isReg() &&
-      MI.getOperand(0).isDef()) {
-    if (MI.getOperand(0).getReg() == RL78::R1)
-      isALive = true;
-    if (MI.getOperand(0).getReg() == RL78::R0)
-      isXLive = true;
-    else if (MI.getOperand(0).getReg() == RL78::RP0)
-      isALive = isXLive = true;
+  if (MI.getOpcode() == TargetOpcode::BUNDLE ||
+      MI.getOpcode() == RL78::XCHW_AX_rp || 
+      MI.getOpcode() == RL78::XCH_A_r || 
+      MI.isCall()) {
+    // Bundle instructions can have multiple defs
+    // Call defs are not first
+    for (unsigned idx = 0, e = MI.getNumOperands(); idx != e; ++idx) {
+      if (MI.getOperand(idx).isReg() && MI.getOperand(idx).isDef() &&
+          !MI.getOperand(idx).isDead()) {
+        if (MI.getOperand(idx).getReg() == RL78::R1)
+          isALive = true;
+        if (MI.getOperand(idx).getReg() == RL78::R0)
+          isXLive = true;
+        else if (MI.getOperand(idx).getReg() == RL78::RP0)
+          isXLive = isALive = true;
+      }
+    }
+  } else {
+    if (MI.getNumOperands() > 0 && MI.getOperand(0).isReg() &&
+        MI.getOperand(0).isDef() && !MI.getOperand(0).isDead()) {
+      if (MI.getOperand(0).getReg() == RL78::R1)
+        isALive = true;
+      if (MI.getOperand(0).getReg() == RL78::R0)
+        isXLive = true;
+      else if (MI.getOperand(0).getReg() == RL78::RP0)
+        isALive = isXLive = true;
+    }
   }
 }
 
@@ -250,8 +271,9 @@ static void updateAAXLiveness(const MachineInstr &MI, bool &isALive,
 // <OP> RP, <...>
 void RemoveMOVWs(MachineInstr &MI, MachineBasicBlock &MBB,
                  MachineBasicBlock::iterator &Next, llvm::Register Reg = 0) {
-  assert(MI.getOperand(0).getReg() == RL78::RP0);
-  if ((MachineBasicBlock::iterator(MI) != MBB.begin()) &&
+
+  if (MI.getOperand(0).getReg() == RL78::RP0 &&
+      (MachineBasicBlock::iterator(MI) != MBB.begin()) &&
       (MachineBasicBlock::iterator(MI) != MBB.end())) {
     MachineInstr &MI2 = *std::prev(MachineBasicBlock::iterator(MI));
     MachineInstr &MI3 = *std::next(MachineBasicBlock::iterator(MI));
@@ -417,8 +439,8 @@ bool RL78InsertExchangeInstructionsPass::runOnMachineFunction(
         break;
       case RL78::SHL_r_imm:
         // Replace MOV R1, R0 + SHL R2/R3, #imm with SHL R2/R3, #imm.
-        assert(MI.getOperand(0).getReg() == RL78::R1);
-        if ((MachineBasicBlock::iterator(MI) != MBB.begin()) &&
+        if ( MI.getOperand(0).getReg() == RL78::R1 &&
+            (MachineBasicBlock::iterator(MI) != MBB.begin()) &&
             (MachineBasicBlock::iterator(MI) != MBB.end())) {
           MachineInstr &MI2 = *std::prev(MachineBasicBlock::iterator(MI));
           MachineInstr &MI3 = *std::next(MachineBasicBlock::iterator(MI));
@@ -573,7 +595,8 @@ bool RL78InsertExchangeInstructionsPass::runOnMachineFunction(
       case RL78::CMPW_rp_imm:
         assert(MI.getOperand(0).isReg());
         assert(MI.getOperand(1).isImm());
-        if (MI.getOperand(1).getImm() == 0) {
+        if (MI.getOperand(0).isKill() &&
+          MI.getOperand(1).getImm() == 0) {
           if (Next == MBB.end())
             break;
           MachineInstr &MI1 = *Next;
@@ -608,6 +631,8 @@ bool RL78InsertExchangeInstructionsPass::runOnMachineFunction(
           // OBS. if next MI is not BRCC we don't know what this is
           // we can't have XOR1 instructions since this is not
           // caused by the DAGCombiner.
+          while(Next->isDebugInstr())
+              Next++;
           MachineInstr &MI2 = *Next;
           ++Next;
           if (MI2.getOpcode() == RL78::BRCC) {
@@ -615,9 +640,28 @@ bool RL78InsertExchangeInstructionsPass::runOnMachineFunction(
             if ((MI2.getOperand(1).getImm() == RL78CC::RL78CC_Z) ||
                 (MI2.getOperand(1).getImm() == RL78CC::RL78CC_NH) ||
                 (MI2.getOperand(1).getImm() == RL78CC::RL78CC_NC))
-              BuildMI(MBB, MI, DL, TII->get(RL78::BR)).add(MI2.getOperand(0));
+              BuildMI(MBB, MI2, DL, TII->get(RL78::BR)).add(MI2.getOperand(0));
             MI2.eraseFromParent();
             MI.eraseFromParent();
+          } else {
+            bool foundLowCMP = false;
+            while (Next != MBB.end()) {
+              if (Next->getOpcode() == RL78::LowCMPW_rp_rp) {
+                foundLowCMP = true;
+                break;
+              }
+              Next++;
+            }
+            // Since the high parts are equal (AX == AX) in a 32 bit compare
+            // our result can be based on the low part compare alone.
+            if (foundLowCMP) {
+              BuildMI(MBB, Next, DL, TII->get(RL78::CMPW_rp_rp))
+                  .add(Next->getOperand(0))
+                  .add(Next->getOperand(1));
+              MI.eraseFromParent();
+            }
+            else
+              report_fatal_error("cmpw ax, ax is not permitted");
           }
         }
         break;
@@ -657,6 +701,7 @@ bool RL78InsertExchangeInstructionsPass::runOnMachineFunction(
       case RL78::CMP_r_memri:
       case RL78::CMP_r_memrr:
       case RL78::CMPW_rp_memri:
+      case RL78::LowCMPW_rp_memri:
       case RL78::LOAD8_r_memrr:
         insertHLExchange(MI, 1, DL, MBB, TII);
         break;

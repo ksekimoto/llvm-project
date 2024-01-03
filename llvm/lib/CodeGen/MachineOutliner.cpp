@@ -105,6 +105,12 @@ static cl::opt<bool> EnableLinkOnceODROutlining(
     cl::desc("Enable the machine outliner on linkonceodr functions"),
     cl::init(false));
 
+static cl::opt<bool>
+    UseSectionAttribute(
+        "use-section-attribute-in-outlined-functions", cl::NotHidden,
+        cl::desc("Use section attribute in outlined functions"),
+        cl::init(true));
+
 /// Number of times to re-run the outliner. This is not the total number of runs
 /// as the outliner will run at least one time. The default value is set to 0,
 /// meaning the outliner will run one time and rerun zero times after that.

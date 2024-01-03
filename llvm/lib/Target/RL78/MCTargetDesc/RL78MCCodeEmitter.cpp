@@ -97,7 +97,7 @@ encode8BitRROperationInstruction(const MCInst &MI, unsigned long long &Bits,
     if (MI.getOperand(2).getReg() == RL78::R1)
       Bits = OpcodeRA + MI.getOperand(0).getReg() - RL78::R0;
     // OP A, r.
-    else if (MI.getOperand(2).getReg() < RL78::R8)
+    else
       Bits += MI.getOperand(2).getReg() - RL78::R0;
   }
   // OP r, A.
@@ -215,14 +215,13 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
                              (MCFixupKind)RL78::fixup_RL78_DIR8U) &
             0xFF;
     break;
-  case RL78::MOV_A_sfr: {
+  case RL78::LOAD8_r_sfr: {
     RL78ReportError(MI.getOperand(0).getReg() == RL78::R1,
                     "Instruction using illegal register.");
     RL78ReportError(MI.getOperand(1).isImm(),
                     "sfr operand can be special register or immediate only");
-    int64_t immediateValue = MI.getOperand(1).getImm();
-    RL78ReportError(immediateValue >= 0xFFF00 && immediateValue <= 0xFFFFF,
-                    "sfr operand not in range");
+    int64_t immediateValue = MI.getOperand(1).getImm() & 0xFFFF;
+    RL78ReportError(immediateValue >= 0xFF00, "sfr operand not in range");
     Bits |= immediateValue & 0xFF;
     break;
   }
@@ -232,15 +231,14 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
                     "Instruction using illegal register.");
     Bits |= sfrRegisterToSfraddr[MI.getOperand(1).getReg()] & 0xFF;
     break;
-  case RL78::MOV_sfr_A: {
+  case RL78::STORE8_sfr_r: {
     // MOV sfr, A ;9E sfr.
     RL78ReportError(MI.getOperand(1).getReg() == RL78::R1,
                     "Instruction using illegal register.");
     RL78ReportError(MI.getOperand(0).isImm(),
                     "sfr operand can be special register or immediate only");
-    int64_t immediateValue = MI.getOperand(0).getImm();
-    RL78ReportError(immediateValue >= 0xFFF00 && immediateValue <= 0xFFFFF,
-                    "sfr operand not in range");
+    int64_t immediateValue = MI.getOperand(0).getImm() & 0xFFFF;
+    RL78ReportError(immediateValue >= 0xFF00, "sfr operand not in range");
     Bits |= immediateValue & 0xFF;
     break;
   }
@@ -250,12 +248,11 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
                     "Instruction using illegal register.");
     Bits |= sfrRegisterToSfraddr[MI.getOperand(0).getReg()] & 0xFF;
     break;
-  case RL78::MOV_sfr_imm: {
+  case RL78::STORE8_sfr_imm: {
     RL78ReportError(MI.getOperand(0).isImm(),
                     "sfr operand can be special register or immediate only");
-    int64_t immediateValue = MI.getOperand(0).getImm();
-    RL78ReportError(immediateValue >= 0xFFF00 && immediateValue <= 0xFFFFF,
-                    "sfr operand not in range");
+    int64_t immediateValue = MI.getOperand(0).getImm() & 0xFFFF;
+    RL78ReportError(immediateValue >= 0xFF00, "sfr operand not in range");
     Bits |= (immediateValue & 0xFF) << 8;
     Bits |= getTargetOpValue(MI, 1, 2, Fixups, STI,
                              (MCFixupKind)RL78::fixup_RL78_DIR8U) &
@@ -387,6 +384,14 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
     break;
   case RL78::STORE8_saddr_A:
     // MOV saddr, A      9D saddr
+    if (MI.getOperand(1).getReg() != RL78::R1) {
+      // TODO: rewrite reporterror to use loc, like below
+      // Or transmit error to RL78AsmParser getStreamer().getAssemblerPtr()->getEmitter()
+      Ctx.getSourceManager()->PrintMessage(
+          errs(), MI.getLoc(), SourceMgr::DiagKind::DK_Error,
+          "Instruction using illegal register.");
+      exit(1);
+    }
     Bits |= getTargetOpValue(MI, 0, 1, Fixups, STI,
                              (MCFixupKind)RL78::fixup_RL78_DIR8U_SAD) &
             0xFF;
@@ -808,9 +813,8 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
                     "Instruction using illegal register.");
     RL78ReportError(MI.getOperand(1).isImm(),
                     "sfr operand can be special register or immediate only");
-    int64_t immediateValue = MI.getOperand(1).getImm();
-    RL78ReportError(immediateValue >= 0xFFF00 && immediateValue <= 0xFFFFF,
-                    "Instruction using illegal operand");
+    int64_t immediateValue = MI.getOperand(1).getImm() & 0xFFFF;
+    RL78ReportError(immediateValue >= 0xFF00, "sfr operand not in range");
     Bits |= immediateValue & 0xFF;
     break;
   }
@@ -1052,16 +1056,15 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
                        (MCFixupKind)RL78::fixup_RL78_DIR16U);
     }
     break;
-  case RL78::MOVW_AX_sfrp: {
+  case RL78::LOAD16_rp_sfrp: {
     // MOVW AX, sfrp ;AE sfr
     RL78ReportError(MI.getOperand(0).getReg() == RL78::RP0,
                     "Instruction using illegal register.");
     RL78ReportError(MI.getOperand(1).isImm(),
                     "sfr operand can be special register or immediate only");
-    int64_t immediateValue = MI.getOperand(1).getImm();
-    RL78ReportError(immediateValue >= 0xFFF00 && immediateValue <= 0xFFFFF &&
-                        immediateValue % 2 == 0,
-                    "Instruction using illegal operand");
+    int64_t immediateValue = MI.getOperand(1).getImm() & 0xFFFF;
+    RL78ReportError(immediateValue >= 0xFF00 && immediateValue % 2 == 0,
+                    "sfr operand not in range");
     Bits |= immediateValue & 0xFF;
     break;
   }
@@ -1095,19 +1098,22 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
     Bits |= addr & 0xFF;
     break;
   }
-  case RL78::MOVW_sfrp_AX: {
+  case RL78::STORE16_sfrp_rp: {
     // MOVW sfrp, AX ;BE sfr
+    RL78ReportError(MI.getOperand(1).getReg() == RL78::RP0,
+                    "Instruction using illegal register.");
     RL78ReportError(MI.getOperand(0).isImm(),
                     "sfr operand can be special register or immediate only");
-    int64_t immediateValue = MI.getOperand(0).getImm();
-    RL78ReportError(immediateValue >= 0xFFF00 && immediateValue <= 0xFFFFF &&
-                        immediateValue % 2 == 0,
-                    "Instruction using illegal operand");
+    int64_t immediateValue = MI.getOperand(0).getImm() & 0xFFFF;
+    RL78ReportError(immediateValue >= 0xFF00 && immediateValue % 2 == 0,
+                    "sfr operand not in range");
     Bits |= immediateValue & 0xFF;
     break;
   }
   case RL78::STORE16_saddrp_rp: {
     // MOVW saddrp, AX    BD saddr
+    RL78ReportError(MI.getOperand(1).getReg() == RL78::RP0,
+                    "Instruction using illegal register.");
     unsigned int addr = getTargetOpValue(
         MI, 0, 1, Fixups, STI, (MCFixupKind)RL78::fixup_RL78_DIR8UW_SAD);
     Bits |= addr & 0xFF;
@@ -1118,13 +1124,12 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
     Bits |= sfrRegisterToSfraddr[MI.getOperand(0).getReg()] & 0xFF;
     break;
   }
-  case RL78::MOVW_sfrp_imm: {
+  case RL78::STORE16_sfrp_imm: {
     RL78ReportError(MI.getOperand(0).isImm(),
                     "sfr operand can be special register or immediate only");
-    int64_t immediateValue = MI.getOperand(0).getImm();
-    RL78ReportError(immediateValue >= 0xFFF00 && immediateValue <= 0xFFFFF &&
-                        immediateValue % 2 == 0,
-                    "Instruction using illegal operand");
+    int64_t immediateValue = MI.getOperand(0).getImm() & 0xFFFF;
+    RL78ReportError(immediateValue >= 0xFF00 && immediateValue % 2 == 0,
+                    "sfr operand not in range");
     Bits |= (immediateValue & 0xFF) << 16;
     unsigned int data = getTargetOpValue(MI, 1, 2, Fixups, STI,
                                          (MCFixupKind)RL78::fixup_RL78_DIR16U);
@@ -2173,6 +2178,18 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
     Bits |= (uaddr | laddr);
     break;
   }
+  case RL78::LowCMPW_rp_abs16: {
+    // sknz
+    // CMPW  AX, !addr16     42 adrl adrh
+    RL78ReportError(MI.getOperand(0).getReg() == RL78::RP0,
+                    "Instruction using illegal register.");
+    unsigned int addressValue = getTargetOpValue(
+        MI, 1, 3, Fixups, STI, (MCFixupKind)RL78::fixup_RL78_DIR16UW_RAM);
+    unsigned int laddr = (0x00FF & addressValue) << 8;
+    unsigned int uaddr = (0xFF00 & addressValue) >> 8;
+    Bits |= (uaddr | laddr);
+    break;
+  }
   case RL78::CMPW_rp_abs16: {
     // CMPW  AX, !addr16     42 adrl adrh
     RL78ReportError(MI.getOperand(0).getReg() == RL78::RP0,
@@ -2193,6 +2210,14 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
         MI, 2, 1, Fixups, STI, (MCFixupKind)RL78::fixup_RL78_DIR8UW_SAD);
     Bits |= (addr & 0xFF);
     break;
+  }
+  case RL78::LowCMPW_rp_saddr: {
+      RL78ReportError(MI.getOperand(0).getReg() == RL78::RP0,
+                    "Instruction using illegal register.");
+      unsigned int addr = getTargetOpValue(
+        MI, 1, 3, Fixups, STI, (MCFixupKind)RL78::fixup_RL78_DIR8UW_SAD);
+      Bits |= (addr & 0xFF);
+      break;
   }
   case RL78::CMPW_rp_saddr: {
     RL78ReportError(MI.getOperand(0).getReg() == RL78::RP0,
@@ -2259,6 +2284,8 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
     Bits |= (addr & 0xFF);
     break;
   }
+  case RL78::LowCMPW_rp_rp:
+       // sknz 61 F8
   case RL78::CMPW_rp_rp:
     RL78ReportError(MI.getOperand(0).getReg() == RL78::RP0,
                     "Instruction using illegal register.");
@@ -2292,6 +2319,17 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
     RL78ReportError(MI.getOperand(2).getReg() == RL78::RP6,
                     "Instruction using illegal register.");
     Bits |= getTargetOpValue(MI, 3, 2, Fixups, STI,
+                             (MCFixupKind)RL78::fixup_RL78_DIR8U) &
+            0xFF;
+    break;
+  case RL78::LowCMPW_rp_memri:
+    // sknz
+    // CMPW AX, [HL+byte]  61 49 adr
+    RL78ReportError(MI.getOperand(0).getReg() == RL78::RP0,
+                    "Instruction using illegal register.");
+    RL78ReportError(MI.getOperand(1).getReg() == RL78::RP6,
+                    "Instruction using illegal register.");
+    Bits |= getTargetOpValue(MI, 2, 4, Fixups, STI,
                              (MCFixupKind)RL78::fixup_RL78_DIR8U) &
             0xFF;
     break;
@@ -2522,9 +2560,8 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
     Bits |= (MI.getOperand(1).getImm() & 0xF) << 12;
     RL78ReportError(MI.getOperand(0).isImm(),
                     "sfr operand can be special register or immediate only");
-    int64_t immediateValue = MI.getOperand(0).getImm();
-    RL78ReportError(immediateValue >= 0xFFF00 && immediateValue <= 0xFFFFF,
-                    "Instruction using illegal operand");
+    int64_t immediateValue = MI.getOperand(0).getImm() & 0xFFFF;
+    RL78ReportError(immediateValue >= 0xFF00, "sfr operand not in range");
     Bits |= immediateValue & 0xFF;
     break;
   }
@@ -2541,9 +2578,8 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
     Bits |= (MI.getOperand(1).getImm() & 0xF) << 12;
     RL78ReportError(MI.getOperand(0).isImm(),
                     "sfr operand can be special register or immediate only");
-    int64_t immediateValue = MI.getOperand(0).getImm();
-    RL78ReportError(immediateValue >= 0xFFF00 && immediateValue <= 0xFFFFF,
-                    "Instruction using illegal operand");
+    int64_t immediateValue = MI.getOperand(0).getImm() & 0xFFFF;
+    RL78ReportError(immediateValue >= 0xFF00, "sfr operand not in range");
     Bits |= immediateValue & 0xFF;
     break;
   }
@@ -2557,12 +2593,11 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
   }
   case RL78::MOV1_cy_sfr: {
     // MOV1 CY, sfr.x ;71 xC sfr   (X -> 0..7)
-    Bits |= (MI.getOperand(2).getImm() & 0xF) << 12;
-    RL78ReportError(MI.getOperand(1).isImm(),
+    Bits |= (MI.getOperand(1).getImm() & 0xF) << 12;
+    RL78ReportError(MI.getOperand(0).isImm(),
                     "sfr operand can be special register or immediate only");
-    int64_t immediateValue = MI.getOperand(1).getImm();
-    RL78ReportError(immediateValue >= 0xFFF00 && immediateValue <= 0xFFFFF,
-                    "Instruction using illegal operand");
+    int64_t immediateValue = MI.getOperand(0).getImm() & 0xFFFF;
+    RL78ReportError(immediateValue >= 0xFF00, "sfr operand not in range");
     Bits |= immediateValue & 0xFF;
     break;
   }
@@ -2652,9 +2687,8 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
     Bits |= (MI.getOperand(1).getImm() & 0xF) << 12;
     RL78ReportError(MI.getOperand(0).isImm(),
                     "sfr operand can be special register or immediate only");
-    int64_t immediateValue = MI.getOperand(0).getImm();
-    RL78ReportError(immediateValue >= 0xFFF00 && immediateValue <= 0xFFFFF,
-                    "Instruction using illegal operand");
+    int64_t immediateValue = MI.getOperand(0).getImm() & 0xFFFF;
+    RL78ReportError(immediateValue >= 0xFF00, "sfr operand not in range");
     Bits |= immediateValue & 0xFF;
     break;
   }
@@ -3036,9 +3070,8 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
 
     RL78ReportError(MI.getOperand(1).isImm(),
                     "sfr operand can be special register or immediate only");
-    int64_t immediateValue = MI.getOperand(1).getImm();
-    RL78ReportError(immediateValue >= 0xFFF00 && immediateValue <= 0xFFFFF,
-                    "Instruction using illegal operand");
+    int64_t immediateValue = MI.getOperand(1).getImm() & 0xFFFF;
+    RL78ReportError(immediateValue >= 0xFF00, "sfr operand not in range");
     Bits |= (immediateValue & 0xFF) << 8;
 
     unsigned int addr = getTargetOpValue(
@@ -3064,9 +3097,8 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
 
     RL78ReportError(MI.getOperand(2).isImm(),
                     "sfr operand can be special register or immediate only");
-    int64_t immediateValue = MI.getOperand(2).getImm();
-    RL78ReportError(immediateValue >= 0xFFF00 && immediateValue <= 0xFFFFF,
-                    "Instruction using illegal operand");
+    int64_t immediateValue = MI.getOperand(2).getImm() & 0xFFFF;
+    RL78ReportError(immediateValue >= 0xFF00, "sfr operand not in range");
     Bits |= (immediateValue & 0xFF) << 8;
 
     unsigned int addr = getTargetOpValue(
@@ -3153,6 +3185,18 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
         MI, 0, 1, Fixups, STI, (MCFixupKind)RL78::fixup_RL78_DIR8U_SAD);
     Bits |= (addr & 0xFF) << 8;
     break;
+  }
+  case RL78::LowCMPW_rp_imm: {
+      // sknz 61 F8
+      // cmpw ax, $imm16 44 datal datah
+        RL78ReportError(MI.getOperand(0).getReg() == RL78::RP0,
+                    "Instruction using illegal register.");
+    unsigned int addressValue = getTargetOpValue(
+        MI, 1, 3, Fixups, STI, (MCFixupKind)RL78::fixup_RL78_DIR16U);
+    unsigned int laddr = (0x00FF & addressValue) << 8;
+    unsigned int uaddr = (0xFF00 & addressValue) >> 8;
+    Bits |= (uaddr | laddr);
+      break;
   }
   default:
     break;

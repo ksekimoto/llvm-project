@@ -1285,6 +1285,17 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
                     .Case("cwd", SaveTempsCwd)
                     .Case("obj", SaveTempsObj)
                     .Default(SaveTempsCwd);
+
+    if (TargetTriple == "rl78") {
+      // save-temps is incompatibile with frenesas-extensions, since only
+      // parsing is supported when using CC-RL asm syntax, generation is still
+      // in GCC syntax.
+      Arg *RenesasExtensions =
+          Args.getLastArg(options::OPT_frenesas_extensions);
+      if (SaveTemps && RenesasExtensions)
+        Diags.Report(diag::err_drv_argument_not_allowed_with)
+            << A->getSpelling() << RenesasExtensions->getSpelling();
+    }
   }
 
   if (const Arg *A = Args.getLastArg(options::OPT_offload_host_only,
