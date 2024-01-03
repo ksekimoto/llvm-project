@@ -46,6 +46,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Allocator.h"
+#include "llvm/Support/CharSet.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include <cassert>
@@ -184,10 +185,10 @@ namespace SrcMgr {
     ///   will be emitted at.
     ///
     /// \param Invalid If non-NULL, will be set \c true if an error occurred.
-    const llvm::MemoryBuffer *getBuffer(DiagnosticsEngine &Diag,
-                                        FileManager &FM,
-                                        SourceLocation Loc = SourceLocation(),
-                                        bool *Invalid = nullptr) const;
+    const llvm::MemoryBuffer *
+    getBuffer(DiagnosticsEngine &Diag, FileManager &FM,
+              SourceLocation Loc = SourceLocation(), bool *Invalid = nullptr,
+              llvm::CharSetConverter *Converter = nullptr) const;
 
     /// Returns the size of the content encapsulated by this
     /// ContentCache.
@@ -981,8 +982,9 @@ public:
   ///
   /// If there is an error opening this buffer the first time, this
   /// manufactures a temporary buffer and returns a non-empty error string.
-  const llvm::MemoryBuffer *getBuffer(FileID FID, SourceLocation Loc,
-                                      bool *Invalid = nullptr) const {
+  const llvm::MemoryBuffer *
+  getBuffer(FileID FID, SourceLocation Loc, bool *Invalid = nullptr,
+            llvm::CharSetConverter *Converter = nullptr) const {
     bool MyInvalid = false;
     const SrcMgr::SLocEntry &Entry = getSLocEntry(FID, &MyInvalid);
     if (MyInvalid || !Entry.isFile()) {
@@ -992,8 +994,8 @@ public:
       return getFakeBufferForRecovery();
     }
 
-    return Entry.getFile().getContentCache()->getBuffer(Diag, getFileManager(),
-                                                        Loc, Invalid);
+    return Entry.getFile().getContentCache()->getBuffer(
+        Diag, getFileManager(), Loc, Invalid, Converter);
   }
 
   const llvm::MemoryBuffer *getBuffer(FileID FID,

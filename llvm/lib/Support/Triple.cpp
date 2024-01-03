@@ -71,7 +71,7 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
   case x86:            return "i386";
   case x86_64:         return "x86_64";
   case xcore:          return "xcore";
-  case RL78: 		   return "rl78";
+  case rl78: 		   return "rl78";
   }
 
   llvm_unreachable("Invalid ArchType!");
@@ -148,7 +148,7 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
   case riscv64:     return "riscv";
 
   case ve:          return "ve";
-  case RL78:     	return "RL78";
+  case rl78:        return "rl78";
   }
 }
 
@@ -319,7 +319,7 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
     .Case("renderscript32", renderscript32)
     .Case("renderscript64", renderscript64)
     .Case("ve", ve)
-    .Case("rl78", RL78)
+    .Case("rl78", rl78)
     .Default(UnknownArch);
 }
 
@@ -449,7 +449,7 @@ static Triple::ArchType parseArch(StringRef ArchName) {
     .Case("ve", Triple::ve)
     .Case("wasm32", Triple::wasm32)
     .Case("wasm64", Triple::wasm64)
-	.Case("rl78", Triple::RL78)
+    .Case("rl78", Triple::rl78)
     .Default(Triple::UnknownArch);
 
   // Some architectures require special parsing logic just to compute the
@@ -710,7 +710,7 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
   case Triple::thumbeb:
   case Triple::ve:
   case Triple::xcore:
-  case Triple::RL78:
+  case Triple::rl78:
     return Triple::ELF;
 
   case Triple::ppc64:
@@ -1242,7 +1242,7 @@ static unsigned getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
 
   case llvm::Triple::avr:
   case llvm::Triple::msp430:
-  case llvm::Triple::RL78:
+  case llvm::Triple::rl78:
     return 16;
 
   case llvm::Triple::aarch64_32:
@@ -1325,7 +1325,7 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::ppc64le:
   case Triple::systemz:
   case Triple::ve:
-  case Triple::RL78:
+  case Triple::rl78:
     T.setArch(UnknownArch);
     break;
 
@@ -1395,7 +1395,7 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::tce:
   case Triple::tcele:
   case Triple::xcore:
-  case Triple::RL78:
+  case Triple::rl78:
     T.setArch(UnknownArch);
     break;
 
@@ -1479,7 +1479,7 @@ Triple Triple::getBigEndianArchVariant() const {
   case Triple::x86_64:
   case Triple::xcore:
   case Triple::ve:
-  case Triple::RL78:
+  case Triple::rl78:
 
   // ARM is intentionally unsupported here, changing the architecture would
   // drop any arch suffixes.
@@ -1572,7 +1572,7 @@ bool Triple::isLittleEndian() const {
   case Triple::x86:
   case Triple::x86_64:
   case Triple::xcore:
-  case Triple::RL78:
+  case Triple::rl78:
     return true;
   default:
     return false;

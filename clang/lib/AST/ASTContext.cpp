@@ -930,7 +930,9 @@ static const LangASMap *getAddressSpaceMap(const TargetInfo &T,
         7, // cuda_shared
         8, // ptr32_sptr
         9, // ptr32_uptr
-        10 // ptr64
+        10,// ptr64
+        11,// __near
+        12 // __far
     };
     return &FakeAddrSpaceMap;
   } else {
@@ -4159,6 +4161,7 @@ ASTContext::getTypedefType(const TypedefNameDecl *Decl,
 
   if (Canonical.isNull())
     Canonical = getCanonicalType(Decl->getUnderlyingType());
+  Canonical.setTypeSpecSign(Decl->getUnderlyingType().getTypeSpecSign());
   auto *newType = new (*this, TypeAlignment)
     TypedefType(Type::Typedef, Decl, Canonical);
   Decl->TypeForDecl = newType;
@@ -8869,8 +8872,12 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
   if (lbaseInfo.getNoCfCheck() != rbaseInfo.getNoCfCheck())
     return {};
 
+  if (lbaseInfo.getFar() != rbaseInfo.getFar())
+    return {};
+
   // FIXME: some uses, e.g. conditional exprs, really want this to be 'both'.
   bool NoReturn = lbaseInfo.getNoReturn() || rbaseInfo.getNoReturn();
+
 
   if (lbaseInfo.getNoReturn() != NoReturn)
     allLTypes = false;
@@ -9137,14 +9144,37 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
       LHSPointee = LHSPointee.getUnqualifiedType();
       RHSPointee = RHSPointee.getUnqualifiedType();
     }
-    QualType ResultType = mergeTypes(LHSPointee, RHSPointee, false,
-                                     Unqualified);
+    // This is done to merge nested pointers: char ** with char __near * __near *
+    bool ModifiedPointee = false;
+    if (getLangOpts().RenesasRL78 &&
+        LHSPointee.getAddressSpace() != RHSPointee.getAddressSpace()) {
+      if (LHSPointee.getQualifiers().isAddressSpaceSupersetOf(
+              RHSPointee.getQualifiers())) {
+        if (RHSPointee.hasAddressSpace())
+          RHSPointee = removeAddrSpaceQualType(RHSPointee);
+        RHSPointee =
+            getAddrSpaceQualType(RHSPointee, LHSPointee.getAddressSpace());
+        ModifiedPointee = true;
+      } else if (RHSPointee.getQualifiers().isAddressSpaceSupersetOf(
+                     LHSPointee.getQualifiers())) {
+        if (LHSPointee.hasAddressSpace())
+          LHSPointee = removeAddrSpaceQualType(LHSPointee);
+        LHSPointee =
+            getAddrSpaceQualType(LHSPointee, RHSPointee.getAddressSpace());
+        ModifiedPointee = true;
+      }
+    }
+
+    QualType ResultType =
+        mergeTypes(LHSPointee, RHSPointee, false, Unqualified);
     if (ResultType.isNull())
       return {};
-    if (getCanonicalType(LHSPointee) == getCanonicalType(ResultType))
-      return LHS;
-    if (getCanonicalType(RHSPointee) == getCanonicalType(ResultType))
-      return RHS;
+    if (!ModifiedPointee) {
+      if (getCanonicalType(LHSPointee) == getCanonicalType(ResultType))
+        return LHS;
+      if (getCanonicalType(RHSPointee) == getCanonicalType(ResultType))
+        return RHS;
+    }
     return getPointerType(ResultType);
   }
   case Type::BlockPointer:
@@ -9852,6 +9882,45 @@ static QualType DecodeTypeFromStr(const char *&Str, const ASTContext &Context,
   return Type;
 }
 
+
+static void HandleRL78BuiltinPrototypes(const ASTContext *Context,
+                                        const char *Name, QualType &ResType,
+                                        SmallVector<QualType, 8> &ArgTypes,
+                                        FunctionType::ExtInfo &EI) {
+
+  // Make the builtin function far
+  if (Context->getLangOpts().RenesasRL78CodeModel)
+    EI = EI.withFar(true);
+
+  // See if we need to make some of the pointer arguments far
+  bool NeedsFarDataPointers = false;
+  bool IsFarRom = Context->getLangOpts().getRenesasRL78RomModel() == LangOptions::RL78RomModelKind::Far;
+  if (!strcmp(Name, "memcpy") || !strcmp(Name, "memmove") ||
+      !strcmp(Name, "memset") || !strcmp(Name, "memcmp") ||
+      !strcmp(Name, "memchr") || !strcmp(Name, "strcpy") ||
+      !strcmp(Name, "strncpy") || !strcmp(Name, "strcat") ||
+      !strcmp(Name, "strncat") || !strcmp(Name, "strcmp") ||
+      !strcmp(Name, "strncmp") || !strcmp(Name, "strchr") ||
+      !strcmp(Name, "strcspn") || !strcmp(Name, "strpbrk") ||
+      !strcmp(Name, "strrchr") || !strcmp(Name, "strspn") ||
+      !strcmp(Name, "strstr") || !strcmp(Name, "strlen"))
+    NeedsFarDataPointers = IsFarRom;
+
+  if (ResType->isPointerType() &&
+      (NeedsFarDataPointers ||
+       ResType->getPointeeType().getQualifiers().hasConst() && IsFarRom))
+    ResType = Context->getPointerType(Context->getAddrSpaceQualType(
+        ResType->getPointeeType(), LangAS::__far));
+  for (size_t i = 0; i < ArgTypes.size(); i++) {
+    if (ArgTypes[i]->isPointerType() &&
+        (NeedsFarDataPointers ||
+         ArgTypes[i]->getPointeeType().getQualifiers().hasConst() && IsFarRom)) {
+      ArgTypes[i] = Context->getPointerType(Context->getAddrSpaceQualType(
+          ArgTypes[i]->getPointeeType(), LangAS::__far));
+    }
+  }
+}
+
 /// GetBuiltinType - Return the type for the specified builtin.
 QualType ASTContext::GetBuiltinType(unsigned Id,
                                     GetBuiltinTypeError &Error,
@@ -9901,7 +9970,8 @@ QualType ASTContext::GetBuiltinType(unsigned Id,
   FunctionType::ExtInfo EI(getDefaultCallingConvention(
       Variadic, /*IsCXXMethod=*/false, /*IsBuiltin=*/true));
   if (BuiltinInfo.isNoReturn(Id)) EI = EI.withNoReturn(true);
-
+  
+  HandleRL78BuiltinPrototypes(this, BuiltinInfo.getName(Id), ResType, ArgTypes, EI);
 
   // We really shouldn't be making a no-proto type here.
   if (ArgTypes.empty() && Variadic && !getLangOpts().CPlusPlus)

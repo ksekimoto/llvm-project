@@ -33,6 +33,7 @@ add_clang_library(clangDriver
   ToolChains/Arch/SystemZ.cpp
   ToolChains/Arch/X86.cpp
   ToolChains/AIX.cpp
+  ToolChains/Arch/RL78.cpp
   ToolChains/Ananas.cpp
   ToolChains/AMDGPU.cpp
   ToolChains/AVR.cpp
@@ -71,6 +72,7 @@ add_clang_library(clangDriver
   ToolChains/XCore.cpp
   ToolChains/PPCLinux.cpp
   ToolChains/InterfaceStubs.cpp
+  ToolChains/RL78.cpp
   Types.cpp
   XRayArgs.cpp
 

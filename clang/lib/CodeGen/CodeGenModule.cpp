@@ -3184,7 +3184,7 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
     // (If function is requested for a definition, we always need to create a new
     // function, not just return a bitcast.)
     if (!IsForDefinition)
-      return llvm::ConstantExpr::getBitCast(Entry, Ty->getPointerTo());
+      return llvm::ConstantExpr::getBitCast(Entry, Ty->getPointerTo(Entry->getAddressSpace()));
   }
 
   // This function doesn't have a complete type (for example, the return
@@ -3200,9 +3200,23 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
     IsIncompleteFunction = true;
   }
 
-  llvm::Function *F =
-      llvm::Function::Create(FTy, llvm::Function::ExternalLinkage,
-                             Entry ? StringRef() : MangledName, &getModule());
+  llvm::Function *F = nullptr;
+  if (Context.getLangOpts().RenesasRL78) {
+    unsigned int FunctionAddressSpace =
+        Context.getLangOpts().RenesasRL78CodeModel
+            ? Context.getTargetAddressSpace(LangAS::__far)
+            : Context.getTargetAddressSpace(LangAS::Default);
+    if (const FunctionDecl *FD = cast_or_null<FunctionDecl>(D))
+      FunctionAddressSpace = Context.getTargetAddressSpace(FD->getType());
+    F = llvm::Function::Create(FTy, llvm::Function::ExternalLinkage,
+                               FunctionAddressSpace,
+                               Entry ? StringRef() : MangledName, &getModule());
+  } else {
+    F = llvm::Function::Create(FTy, llvm::Function::ExternalLinkage,
+                                +Entry ? StringRef() : MangledName,
+                                &getModule());
+    
+  }
 
   // If we already created a function with the same mangled name (but different
   // type) before, take its name and add it to the list of functions to be
@@ -3224,8 +3238,14 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
       Entry->removeDeadConstantUsers();
     }
 
-    llvm::Constant *BC = llvm::ConstantExpr::getBitCast(
-        F, Entry->getType()->getElementType()->getPointerTo());
+    llvm::Constant *BC = nullptr;
+    if (Context.getLangOpts().RenesasRL78)
+      BC = llvm::ConstantExpr::getBitCast(
+          F, Entry->getType()->getElementType()->getPointerTo(
+                 F->getAddressSpace()));
+    else
+      BC = llvm::ConstantExpr::getBitCast(
+          F, Entry->getType()->getElementType()->getPointerTo());
     addGlobalValReplacement(Entry, BC);
   }
 
@@ -3787,6 +3807,8 @@ LangAS CodeGenModule::getStringLiteralAddressSpace() const {
   // OpenCL v1.2 s6.5.3: a string literal is in the constant address space.
   if (LangOpts.OpenCL)
     return LangAS::opencl_constant;
+  if(LangOpts.getRenesasRL78RomModel() == clang::LangOptions::RL78RomModelKind::Far)
+    return LangAS::__far;
   if (auto AS = getTarget().getConstantAddressSpace())
     return AS.getValue();
   return LangAS::Default;

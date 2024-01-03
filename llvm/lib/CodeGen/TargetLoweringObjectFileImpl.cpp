@@ -599,7 +599,7 @@ MCSection *TargetLoweringObjectFileELF::getExplicitSectionGlobal(
   StringRef Group = "";
   unsigned Flags = getELFSectionFlags(Kind);
 
-  if (TM.getTargetTriple().getArch() == Triple::RL78 && GV &&
+  if (TM.getTargetTriple().getArch() == Triple::rl78 && GV &&
       GV->getAttributes().hasAttribute("abs_addr"))
     Flags |= ELF::SHF_RENESAS_ABS;
 

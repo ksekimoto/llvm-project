@@ -229,6 +229,12 @@ public:
     All,
   };
 
+  enum class RL78RomModelKind {
+    Near,
+    Common,
+    Far
+  };
+
 public:
   /// Set of enabled sanitizers.
   SanitizerSet Sanitize;
@@ -299,6 +305,13 @@ public:
   /// Indicates whether the front-end is explicitly told that the
   /// input is a header file (i.e. -x c-header).
   bool IsHeaderFile = false;
+
+
+  /// Name of the input charset to convert to the internal charset.
+  std::string InputCharset;
+
+  /// Name of the exec charset to convert the internal charset to.
+  std::string ExecCharset;
 
   LangOptions();
 

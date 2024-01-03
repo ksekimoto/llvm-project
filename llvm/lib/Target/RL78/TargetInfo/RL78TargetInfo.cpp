@@ -17,6 +17,6 @@ Target &llvm::getTheRL78Target() {
 }
 
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeRL78TargetInfo() {
-  RegisterTarget<Triple::RL78, /*HasJIT=*/false> X(getTheRL78Target(), "RL78",
-                                                   "RL78", "RL78");
+  RegisterTarget<Triple::rl78, /*HasJIT=*/false> X(getTheRL78Target(), "rl78",
+                                                   "Renesas RL78", "RL78");
 }

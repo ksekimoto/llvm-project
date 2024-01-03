@@ -481,7 +481,15 @@ public:
            (A == LangAS::opencl_generic && B != LangAS::opencl_constant) ||
            // Consider pointer size address spaces to be equivalent to default.
            ((isPtrSizeAddressSpace(A) || A == LangAS::Default) &&
-            (isPtrSizeAddressSpace(B) || B == LangAS::Default));
+            (isPtrSizeAddressSpace(B) || B == LangAS::Default)) ||
+           // On Renesas RL78 the Default address space can be:
+           // __near in which case __far is a superset of Default.
+           // __far in which case Default is a superset of __near.
+           //(A == LangAS::__far && B == LangAS::Default) ||
+           (A == LangAS::__near && B == LangAS::Default) ||
+           (A == LangAS::Default && B == LangAS::__near) ||
+           (A == LangAS::__far && B == LangAS::__near) ||
+           (A == LangAS::__far && B == LangAS::Default);
   }
 
   /// Returns true if the address space in these qualifiers is equal to or
@@ -680,6 +688,14 @@ public:
 
   unsigned getLocalFastQualifiers() const { return Value.getInt(); }
   void setLocalFastQualifiers(unsigned Quals) { Value.setInt(Quals); }
+
+// TODO: find different implementation.
+private:
+  unsigned int mask;
+
+public:
+  unsigned getTypeSpecSign() const { return mask & 0x3; }
+  void setTypeSpecSign(unsigned sign) { mask = sign & 0x3; }
 
   /// Retrieves a pointer to the underlying (unqualified) type.
   ///
@@ -1556,7 +1572,7 @@ protected:
 
     /// Extra information which affects how the function is called, like
     /// regparm and the calling convention.
-    unsigned ExtInfo : 12;
+    unsigned ExtInfo : 14;
 
     /// The ref-qualifier associated with a \c FunctionProtoType.
     ///
@@ -3537,8 +3553,8 @@ public:
     // you'll need to adjust both the Bits field below and
     // Type::FunctionTypeBitfields.
 
-    //   |  CC  |noreturn|produces|nocallersavedregs|regparm|nocfcheck|
-    //   |0 .. 4|   5    |    6   |       7         |8 .. 10|    11   |
+    //   |  CC  |noreturn|produces|nocallersavedregs|regparm|nocfcheck|far|nondefaultas|
+    //   |0 .. 4|   5    |    6   |       7         |8 .. 10|    11   |12 |   13    |
     //
     // regparm is either 0 (no regparm attribute) or the regparm value+1.
     enum { CallConvMask = 0x1F };
@@ -3546,9 +3562,12 @@ public:
     enum { ProducesResultMask = 0x40 };
     enum { NoCallerSavedRegsMask = 0x80 };
     enum { NoCfCheckMask = 0x800 };
+    //TODO: RL78 double check that the field is properly handled everywhere
+    enum { FarMask = 0x1000 }; 
+    enum { NonDefaultASMask = 0x2000 };
     enum {
       RegParmMask = ~(CallConvMask | NoReturnMask | ProducesResultMask |
-                      NoCallerSavedRegsMask | NoCfCheckMask),
+                      NoCallerSavedRegsMask | NoCfCheckMask | FarMask | NonDefaultASMask),
       RegParmOffset = 8
     }; // Assumed to be the last field
     uint16_t Bits = CC_C;
@@ -3559,13 +3578,15 @@ public:
      // Constructor with no defaults. Use this when you know that you
      // have all the elements (when reading an AST file for example).
      ExtInfo(bool noReturn, bool hasRegParm, unsigned regParm, CallingConv cc,
-             bool producesResult, bool noCallerSavedRegs, bool NoCfCheck) {
+             bool producesResult, bool noCallerSavedRegs, bool NoCfCheck, bool Far, bool NonDefaultAS) {
        assert((!hasRegParm || regParm < 7) && "Invalid regparm value");
        Bits = ((unsigned)cc) | (noReturn ? NoReturnMask : 0) |
               (producesResult ? ProducesResultMask : 0) |
               (noCallerSavedRegs ? NoCallerSavedRegsMask : 0) |
               (hasRegParm ? ((regParm + 1) << RegParmOffset) : 0) |
-              (NoCfCheck ? NoCfCheckMask : 0);
+              (NoCfCheck ? NoCfCheckMask : 0) |
+              (Far ? FarMask : 0) | 
+              (NonDefaultAS ? NonDefaultASMask : 0);
     }
 
     // Constructor with all defaults. Use when for example creating a
@@ -3580,7 +3601,9 @@ public:
     bool getProducesResult() const { return Bits & ProducesResultMask; }
     bool getNoCallerSavedRegs() const { return Bits & NoCallerSavedRegsMask; }
     bool getNoCfCheck() const { return Bits & NoCfCheckMask; }
-    bool getHasRegParm() const { return (Bits >> RegParmOffset) != 0; }
+    bool getFar() const { return Bits & FarMask; }
+    bool getNonDefaultAS() const { return Bits & NonDefaultASMask; }
+    bool getHasRegParm() const { return ((Bits & RegParmMask) >> RegParmOffset) != 0; }
 
     unsigned getRegParm() const {
       unsigned RegParm = (Bits & RegParmMask) >> RegParmOffset;
@@ -3627,6 +3650,20 @@ public:
         return ExtInfo(Bits | NoCfCheckMask);
       else
         return ExtInfo(Bits & ~NoCfCheckMask);
+    }
+
+    ExtInfo withFar(bool Far) const {
+      if (Far)
+        return ExtInfo(Bits | FarMask);
+      else
+        return ExtInfo(Bits & ~FarMask);
+    }
+
+    ExtInfo withNonDefaultAS(bool DefaultAS) const {
+      if (DefaultAS)
+        return ExtInfo(Bits | NonDefaultASMask);
+      else
+        return ExtInfo(Bits & ~NonDefaultASMask);
     }
 
     ExtInfo withRegParm(unsigned RegParm) const {
@@ -3686,6 +3723,9 @@ public:
   /// attribute. The C++11 [[noreturn]] attribute does not affect the function
   /// type.
   bool getNoReturnAttr() const { return getExtInfo().getNoReturn(); }
+
+  bool getFar() const { return getExtInfo().getFar(); }
+  bool getNonDefaultAS() const { return getExtInfo().getNonDefaultAS(); }
 
   CallingConv getCallConv() const { return getExtInfo().getCC(); }
   ExtInfo getExtInfo() const { return ExtInfo(FunctionTypeBits.ExtInfo); }
@@ -6262,10 +6302,14 @@ inline const Type *QualType::getTypePtrOrNull() const {
 }
 
 inline SplitQualType QualType::split() const {
-  if (!hasLocalNonFastQualifiers())
-    return SplitQualType(getTypePtrUnsafe(),
-                         Qualifiers::fromFastMask(getLocalFastQualifiers()));
-
+  if (!hasLocalNonFastQualifiers()) {
+    Qualifiers q = Qualifiers::fromFastMask(getLocalFastQualifiers());
+    if (isa<FunctionType>(getTypePtr()->getUnqualifiedDesugaredType()) &&
+      cast<FunctionType>(getTypePtr()->getUnqualifiedDesugaredType())->getFar() &&
+      !q.hasAddressSpace())
+    q.addAddressSpace(LangAS::__far);
+    return SplitQualType(getTypePtrUnsafe(), q);
+  }
   const ExtQuals *eq = getExtQualsUnsafe();
   Qualifiers qs = eq->getQualifiers();
   qs.addFastQualifiers(getLocalFastQualifiers());
@@ -6277,12 +6321,17 @@ inline Qualifiers QualType::getLocalQualifiers() const {
   if (hasLocalNonFastQualifiers())
     Quals = getExtQualsUnsafe()->getQualifiers();
   Quals.addFastQualifiers(getLocalFastQualifiers());
+  if (isa<FunctionType>(getTypePtr()->getUnqualifiedDesugaredType()) &&
+      cast<FunctionType>(getTypePtr()->getUnqualifiedDesugaredType())->getFar() &&
+      !Quals.hasAddressSpace())
+    Quals.addAddressSpace(LangAS::__far);
   return Quals;
 }
 
 inline Qualifiers QualType::getQualifiers() const {
   Qualifiers quals = getCommonPtr()->CanonicalType.getLocalQualifiers();
   quals.addFastQualifiers(getLocalFastQualifiers());
+ /* */
   return quals;
 }
 

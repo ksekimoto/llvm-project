@@ -104,6 +104,8 @@ namespace clang {
     /// __alignof returns the preferred alignment of a type, the alignment
     /// clang will attempt to give an object of the type if allowed by ABI.
     UETT_PreferredAlignOf,
+    UETT_SecTop,
+    UETT_SecEnd,
   };
 }
 

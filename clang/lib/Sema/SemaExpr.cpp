@@ -943,6 +943,21 @@ ExprResult Sema::DefaultVariadicArgumentPromotion(Expr *E, VariadicCallType CT,
     return ExprError();
   E = ExprRes.get();
 
+  QualType ExprType = E->getType();
+  //TODO: Change to RenesasExt when cc-rl library is finished and remove this option.
+  if (getLangOpts().RenesasVaArgPromotion &&
+      ExprType->isPointerType() &&
+      cast<PointerType>(ExprType->getCanonicalTypeInternal())->getPointeeType().getAddressSpace() != LangAS::__far) {
+    QualType ExprSubType = cast<PointerType>(ExprType->getCanonicalTypeInternal())->getPointeeType();
+    QualType ExprTypeWithDestAS =
+        Context.getAddrSpaceQualType(Context.removeAddrSpaceQualType(ExprSubType), LangAS::__far);
+    ExprTypeWithDestAS = Context.getPointerType(ExprTypeWithDestAS);
+    E = ImpCastExprToType(E, ExprTypeWithDestAS, CK_AddressSpaceConversion,
+                          E->getValueKind())
+            .get();
+  }
+
+
   // Diagnostics regarding non-POD argument types are
   // emitted along with format string checking in Sema::CheckFunctionCall().
   if (isValidVarArgType(E->getType()) == VAK_Undefined) {
@@ -1740,6 +1755,8 @@ Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
     StringTokLocs.push_back(Tok.getLocation());
 
   QualType CharTy = Context.CharTy;
+  if(getLangOpts().getRenesasRL78RomModel() == LangOptions::RL78RomModelKind::Far)
+    CharTy = Context.getAddrSpaceQualType(CharTy, LangAS::__far);
   StringLiteral::StringKind Kind = StringLiteral::Ascii;
   if (Literal.isWide()) {
     CharTy = Context.getWideCharType();
@@ -4342,6 +4359,39 @@ Sema::CreateUnaryExprOrTypeTraitExpr(Expr *E, SourceLocation OpLoc,
     E = PE.get();
   }
 
+  if ((ExprKind == UETT_SecTop) || (ExprKind == UETT_SecEnd)) {
+    SmallString<120> Buffer;
+    auto *PE = dyn_cast<ParenExpr>(E);
+    if (!PE) {
+      Diag(E->getBeginLoc(), diag::err_renesas_missing_paren);
+      return ExprError();
+    }
+    auto *SL = dyn_cast<StringLiteral>(PE->getSubExpr());
+    if (!SL) {
+      Diag(PE->getSubExpr()->getBeginLoc(), diag::err_expr_not_string_literal);
+      return ExprError();
+    }
+    std::string prefix = ((ExprKind == UETT_SecTop) ? "_start_" : "_stop_"); 
+    auto &Ident = Context.Idents.getOwn(prefix + SL->getString().str());
+
+    // If Default address space is __near address space 
+    // we need to make the pointer __far.
+    QualType type = Context.getAddrSpaceQualType(Context.VoidPtrTy, LangAS::__far);
+
+    auto *VD = VarDecl::Create(
+        Context, getCurLexicalContext(), SourceLocation(),
+        SourceLocation(), &Ident, type,
+        Context.CreateTypeSourceInfo(type), SC_Extern);
+
+    Expr *RefE = DeclRefExpr::Create(
+        Context, NestedNameSpecifierLoc(), SourceLocation(), VD, false,
+        SourceLocation(), type, VK_LValue);
+
+    return new (Context) UnaryOperator(
+        RefE, UO_AddrOf, Context.getPointerType(type), VK_RValue,
+        OK_Ordinary, SourceLocation(), false);
+  }
+
   // C99 6.5.3.4p4: the type (an unsigned integer type) is size_t.
   return new (Context) UnaryExprOrTypeTraitExpr(
       ExprKind, E, Context.getSizeType(), OpLoc, E->getSourceRange().getEnd());
@@ -5915,7 +5965,9 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
   unsigned BuiltinID = (FDecl ? FDecl->getBuiltinID() : 0);
 
   // Functions with 'interrupt' attribute cannot be called directly.
-  if (FDecl && FDecl->hasAttr<AnyX86InterruptAttr>()) {
+  if (FDecl && (FDecl->hasAttr<AnyX86InterruptAttr>() ||
+                FDecl->hasAttr<RL78BRKInterruptAttr>() ||
+                FDecl->hasAttr<RL78InterruptAttr>())) {
     Diag(Fn->getExprLoc(), diag::err_anyx86_interrupt_called);
     return ExprError();
   }
@@ -14822,7 +14874,8 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
   case IncompatiblePointerDiscardsQualifiers: {
     // Perform array-to-pointer decay if necessary.
     if (SrcType->isArrayType()) SrcType = Context.getArrayDecayedType(SrcType);
-
+    // Perform function-to-pointer decay if necessary.
+    if (SrcType->isFunctionType()) SrcType = Context.getPointerType(SrcType);
     Qualifiers lhq = SrcType->getPointeeType().getQualifiers();
     Qualifiers rhq = DstType->getPointeeType().getQualifiers();
     if (lhq.getAddressSpace() != rhq.getAddressSpace()) {

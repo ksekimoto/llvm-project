@@ -1323,6 +1323,9 @@ NamedDecl *Sema::getCurFunctionOrMethodDecl() {
 LangAS Sema::getDefaultCXXMethodAddrSpace() const {
   if (getLangOpts().OpenCL)
     return LangAS::opencl_generic;
+  // TODO: enable this when mfar-code works for C++
+  // if (getLangOpts().RenesasRL78CodeModel)
+  //  return LangAS::__far;
   return LangAS::Default;
 }
 
@@ -2341,3 +2344,75 @@ bool Sema::checkOpenCLDisabledDecl(const NamedDecl &D, const Expr &E) {
   return checkOpenCLDisabledTypeOrDecl(&D, E.getBeginLoc(), FnName,
                                        OpenCLDeclExtMap, 1, D.getSourceRange());
 }
+
+ void Sema::ActOnCCRLPragmaEntry(const SmallVectorImpl<RenesasCCRLPragmaEntry> &PragmaEntries, SourceLocation Loc) {
+    //TODO: check triple is rl78
+    for (const auto &newEntry : PragmaEntries) {
+      for (const RenesasCCRLPragmaEntry &entry : RenesasCCRLPragmaEntries) {
+        if (newEntry.Identifier.compare(entry.Identifier) == 0) {
+          // CCRL specification:
+          // -If another #pragma is specified, a compilation error will occur.
+          if ((newEntry.PragmaType == RenesasCCRLPragmaType::CCRLSaddr) ||
+            (newEntry.PragmaType == RenesasCCRLPragmaType::CCRLAddress) ||
+            (newEntry.PragmaType == RenesasCCRLPragmaType::CCRLInterrupt) ||
+            (newEntry.PragmaType == RenesasCCRLPragmaType::CCRLBrkInterrupt) ||
+            (newEntry.PragmaType == RenesasCCRLPragmaType::CCRLInlineASM) ||
+            (newEntry.PragmaType == RenesasCCRLPragmaType::CCRLInline) ||
+            (newEntry.PragmaType == RenesasCCRLPragmaType::CCRLNoInline)) {
+            Diag(Loc, diag::err_ccrl_pragma_incompatibility);
+            return;
+          }
+          // CCRL Specification: 
+          // -If a #pragma directive other than #pragma callt, #pragma near, or #pragma far 
+          // is specified for the same function, a compilation error will occur
+          // -When #pragma callt, #pragma near, or #pragma far was specified together for the same function, 
+          // the #pragma directives become valid in the priority order of #pragma callt > #pragma near > #pragma far
+          else if(newEntry.PragmaType == RenesasCCRLPragmaType::CCRLCallt) {
+            if((entry.PragmaType == RenesasCCRLPragmaType::CCRLNear) ||
+              (entry.PragmaType == RenesasCCRLPragmaType::CCRLFar)) {
+              // callt has higher priority, remove the near/far pragma.
+              RenesasCCRLPragmaEntries.erase(&entry);
+              // No need to look for another one, there is none.
+              break;
+            }
+            else if((entry.PragmaType == RenesasCCRLPragmaType::CCRLCallt)) {
+              // Just ignore it.
+              return;
+            } else {
+              Diag(Loc, diag::err_ccrl_pragma_incompatibility);
+              return;
+            }
+          } 
+          else if (newEntry.PragmaType == RenesasCCRLPragmaType::CCRLNear) {
+            if (entry.PragmaType == RenesasCCRLPragmaType::CCRLFar) {
+              // callt has higher priority, remove the near/far pragma.
+              RenesasCCRLPragmaEntries.erase(&entry);
+              // No need to look for another one, there is none.
+              break;
+            }
+            else if((entry.PragmaType == RenesasCCRLPragmaType::CCRLCallt) ||
+              (entry.PragmaType == RenesasCCRLPragmaType::CCRLNear)) {
+              // Just ignore it.
+              return;
+            } else {
+              Diag(Loc, diag::err_ccrl_pragma_incompatibility);
+              return;
+            }
+          }
+          else if (newEntry.PragmaType == RenesasCCRLPragmaType::CCRLFar) {
+            if((entry.PragmaType == RenesasCCRLPragmaType::CCRLCallt) ||
+              (entry.PragmaType == RenesasCCRLPragmaType::CCRLNear) ||
+              (entry.PragmaType == RenesasCCRLPragmaType::CCRLFar)) {
+              // Just ignore it.
+              return;
+            } else {
+              Diag(Loc, diag::err_ccrl_pragma_incompatibility);
+              return;
+            }
+          }
+        }
+      }
+      //RenesasCCRLPragmaEntries.append(PragmaEntries.begin(), PragmaEntries.end());
+      RenesasCCRLPragmaEntries.push_back(newEntry);
+    }
+  }

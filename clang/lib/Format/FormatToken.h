@@ -420,6 +420,8 @@ struct FormatToken {
     case tok::tilde:
     case tok::kw_sizeof:
     case tok::kw_alignof:
+    case tok::kw___sectop:
+    case tok::kw___secend:
       return true;
     default:
       return false;
@@ -450,6 +452,8 @@ struct FormatToken {
     case tok::kw_noexcept:
     case tok::kw_static_assert:
     case tok::kw___attribute:
+    case tok::kw___sectop:
+    case tok::kw___secend:
       return true;
     default:
       return false;

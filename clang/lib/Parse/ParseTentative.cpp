@@ -1741,7 +1741,11 @@ Parser::isCXXDeclarationSpecifier(Parser::TPResult BracedCastResult,
   // C11 _Atomic
   case tok::kw__Atomic:
     return TPResult::True;
-
+  // RL78 address space qualifiers
+  case tok::kw___far:
+  case tok::kw___near:
+    if (getLangOpts().RenesasRL78)
+      return TPResult::True;
   default:
     return TPResult::False;
   }

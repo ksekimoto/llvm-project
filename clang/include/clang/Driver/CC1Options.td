@@ -18,6 +18,14 @@ let Flags = [CC1Option, NoDriverOption] in {
 
 let Flags = [CC1Option, CC1AsOption, NoDriverOption] in {
 
+def finput_charset : Separate<["-"], "finput-charset">,
+  HelpText<"Set the input <charset> of the string and character literals. "
+           "Supported character encodings include ISO8859-1, UTF-8, IBM-1047 "
+           "and those supported by the host iconv library.">;
+def fexec_charset : Separate<["-"], "fexec-charset">, MetaVarName<"<charset>">,
+  HelpText<"Set the execution <charset> for string and character literals. "
+           "Supported character encodings include ISO8859-1, UTF-8, IBM-1047 "
+           "and those supported by the host iconv library.">;
 def target_cpu : Separate<["-"], "target-cpu">,
   HelpText<"Target a specific cpu type">;
 def target_feature : Separate<["-"], "target-feature">,

@@ -621,7 +621,7 @@ getRelocationResolver(const ObjectFile &Obj) {
     case Triple::riscv32:
       return {supportsRISCV, resolveRISCV};
 //TODO: is this executed?
-    case Triple::RL78:
+    case Triple::rl78:
       return {supportsRL78, resolveRL78};
     default:
       return {nullptr, nullptr};
