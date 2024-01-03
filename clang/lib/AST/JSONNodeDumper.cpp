@@ -1241,6 +1241,8 @@ void JSONNodeDumper::VisitUnaryExprOrTypeTraitExpr(
   case UETT_PreferredAlignOf:  JOS.attribute("name", "__alignof"); break;
   case UETT_OpenMPRequiredSimdAlign:
     JOS.attribute("name", "__builtin_omp_required_simd_align"); break;
+  case UETT_SecTop: JOS.attribute("name", "__sectop"); break;
+  case UETT_SecEnd: JOS.attribute("name", "__secend"); break;
   }
   if (TTE->isArgumentType())
     JOS.attribute("argType", createQualType(TTE->getArgumentType()));

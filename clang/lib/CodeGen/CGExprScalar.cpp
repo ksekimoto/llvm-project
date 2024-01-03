@@ -2062,6 +2062,27 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     }
     // Since target may map different address spaces in AST to the same address
     // space, an address space conversion may end up as a bitcast.
+
+    // Edge case for RL78: if we are casting between data near and function far
+    // pointers, we want to do a far data cast first and then a bitcast.
+    // Otherwise we might fail to correctly prefix near data pointers with 0x0f
+    if (CGF.getLangOpts().RenesasRL78 &&
+        E->getType()->getPointeeType()->isFunctionType() !=
+            DestTy->getPointeeType()->isFunctionType() &&
+        DestTy->getPointeeType().getAddressSpace() == LangAS::__far) {
+
+      QualType FarSrcType = E->getType()->getPointeeType();
+      if (FarSrcType.hasAddressSpace())
+        FarSrcType = CGF.getContext().removeAddrSpaceQualType(FarSrcType);
+      FarSrcType =
+          CGF.getContext().getAddrSpaceQualType(FarSrcType, LangAS::__far);
+      FarSrcType = CGF.getContext().getPointerType(FarSrcType);
+      Value *AddrCast = CGF.CGM.getTargetCodeGenInfo().performAddrSpaceCast(
+          CGF, Visit(E), E->getType()->getPointeeType().getAddressSpace(),
+          LangAS::__far, ConvertType(FarSrcType));
+      return Builder.CreateBitCast(AddrCast, ConvertType(DestTy));
+    }
+
     return CGF.CGM.getTargetCodeGenInfo().performAddrSpaceCast(
         CGF, Visit(E), E->getType()->getPointeeType().getAddressSpace(),
         DestTy->getPointeeType().getAddressSpace(), ConvertType(DestTy));
@@ -2178,8 +2199,26 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     auto DestLLVMTy = ConvertType(DestTy);
     llvm::Type *MiddleTy = CGF.CGM.getDataLayout().getIntPtrType(DestLLVMTy);
     bool InputSigned = E->getType()->isSignedIntegerOrEnumerationType();
-    llvm::Value* IntResult =
-      Builder.CreateIntCast(Src, MiddleTy, InputSigned, "conv");
+    llvm::Value *IntResult =
+        Builder.CreateIntCast(Src, MiddleTy, InputSigned, "conv");
+
+    if (CGF.CGM.getLangOpts().RenesasRL78) {
+      unsigned DestBitSize =
+          CGF.CGM.getDataLayout().getPointerTypeSizeInBits(DestLLVMTy);
+
+      Expr::EvalResult Result;
+      // If this is a constant that evaluates to 0, we return a nullptr
+      if (E->EvaluateAsRValue(Result, CGF.getContext()) &&
+          Result.Val.getInt() == 0) {
+        return Builder.CreateIntToPtr(Builder.getIntN(DestBitSize, 0),
+                                      DestLLVMTy);
+      }
+
+      // Despite RL78 representing far pointers on 32bits in LLVM, we need to
+      // set to 0 anything above 24bits.
+      if (DestBitSize > 24)
+        IntResult = Builder.CreateAnd(IntResult, 0xFF'FFFF);
+    } 
 
     auto *IntToPtr = Builder.CreateIntToPtr(IntResult, DestLLVMTy);
 
@@ -2204,6 +2243,35 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
         PtrExpr = Builder.CreateStripInvariantGroup(PtrExpr);
     }
 
+    // For RL78, if the target int type is bigger than 16bits, we need to prefix
+    // the data pointer with 0x0f if it's not null
+    if (!E->getType()->isNullPtrType()) {
+      QualType SrcPointeeType =
+          E->getType()->getPointeeType().getDesugaredType(CGF.getContext());
+      if (CGF.getLangOpts().RenesasRL78 &&
+          !SrcPointeeType.getTypePtr()->isFunctionType() &&
+          SrcPointeeType.getQualifiers().getAddressSpace() != LangAS::__far) {
+        llvm::Type *ConvertedIntegralType = ConvertType(DestTy);
+        // If the target int type is bigger than 16bits, we need to prefix the
+        // data pointer with 0x0f if it's not null
+        if (ConvertedIntegralType->getIntegerBitWidth() > 16) {
+          Value *ConvertedValue =
+              Builder.CreatePtrToInt(PtrExpr, Builder.getInt16Ty());
+
+          Value *NullValue16 = Builder.getIntN(16, 0x00);
+          Value *CondValue = Builder.CreateICmpEQ(NullValue16, ConvertedValue);
+          Value *PrefixValue = Builder.getIntN(
+              ConvertedIntegralType->getIntegerBitWidth(), 0x0f0000);
+          Value *NullValue = Builder.getIntN(
+              ConvertedIntegralType->getIntegerBitWidth(), 0x00);
+          Value *CastedValue = Builder.CreateIntCast(
+              ConvertedValue, ConvertedIntegralType, false);
+          Value *SelectedPrefix =
+              Builder.CreateSelect(CondValue, NullValue, PrefixValue);
+          return Builder.CreateOr(CastedValue, SelectedPrefix);
+        }
+      }
+    }
     return Builder.CreatePtrToInt(PtrExpr, ConvertType(DestTy));
   }
   case CK_ToVoid: {
@@ -3927,6 +3995,27 @@ Value *ScalarExprEmitter::EmitCompare(const BinaryOperator *E,
           LHS = Builder.CreateStripInvariantGroup(LHS);
         if (RHSTy.mayBeDynamicClass())
           RHS = Builder.CreateStripInvariantGroup(RHS);
+      }
+      
+      // For RL78 far pointers, equality is tested on the lower 3 bytes
+      // >,< is tested on the lower 2 bytes.
+      if (CGF.getLangOpts().RenesasRL78 && LHS->getType()->isPointerTy() &&
+          RHS->getType()->isPointerTy() &&
+          LHS->getType()->getPointerAddressSpace() ==
+              CGF.getContext().getTargetAddressSpace(LangAS::__far)) {
+        switch (E->getOpcode()) {
+        case BO_GT:
+        case BO_LE:
+        case BO_LT:
+        case BO_GE:
+          LHS = Builder.CreatePtrToInt(
+              LHS, llvm::IntegerType::get(CGF.CGM.getLLVMContext(), 16));
+          RHS = Builder.CreatePtrToInt(
+              RHS, llvm::IntegerType::get(CGF.CGM.getLLVMContext(), 16));
+          break;
+        default:
+          break;
+        };
       }
 
       Result = Builder.CreateICmp(UICmpOpc, LHS, RHS, "cmp");

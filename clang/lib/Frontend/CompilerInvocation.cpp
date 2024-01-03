@@ -685,7 +685,8 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
 
   // At O0 we want to fully disable inlining outside of cases marked with
   // 'alwaysinline' that are required for correctness.
-  Opts.setInlining((Opts.OptimizationLevel == 0)
+//TODO: Seb we can use AddRL78TargetArgs to change this
+  Opts.setInlining((Opts.OptimizationLevel < 3)
                        ? CodeGenOptions::OnlyAlwaysInlining
                        : CodeGenOptions::NormalInlining);
   // Explicit inlining flags can disable some or all inlining even at
@@ -971,8 +972,8 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
   Opts.NullPointerIsValid = Args.hasArg(OPT_fno_delete_null_pointer_checks);
 
   Opts.ProfileSampleAccurate = Args.hasArg(OPT_fprofile_sample_accurate);
-
-  Opts.PrepareForLTO = Args.hasArg(OPT_flto, OPT_flto_EQ);
+  
+  /*Opts.PrepareForLTO = Args.hasArg(OPT_flto, OPT_flto_EQ);
   Opts.PrepareForThinLTO = false;
   if (Arg *A = Args.getLastArg(OPT_flto_EQ)) {
     StringRef S = A->getValue();
@@ -988,7 +989,7 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
       Diags.Report(diag::err_drv_argument_only_allowed_with)
           << A->getAsString(Args) << "-x ir";
     Opts.ThinLTOIndexFile = Args.getLastArgValue(OPT_fthinlto_index_EQ);
-  }
+  }*/
   if (Arg *A = Args.getLastArg(OPT_save_temps_EQ))
     Opts.SaveTempsFilePrefix =
         llvm::StringSwitch<std::string>(A->getValue())
@@ -2710,6 +2711,22 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.MicrosoftExt = Opts.MSVCCompat || Args.hasArg(OPT_fms_extensions);
   Opts.AsmBlocks = Args.hasArg(OPT_fasm_blocks) || Opts.MicrosoftExt;
   Opts.MSCompatibilityVersion = 0;
+
+  Opts.UnsignedBitfields = Args.hasArg(OPT_funsigned_bitfields);
+  
+  if(T.isRL78()) {
+    Opts.RenesasRL78 = 1;
+    Opts.RenesasExt = Args.hasArg(OPT_frenesas_extensions);
+    Opts.RenesasVaArgPromotion = Args.hasArg(OPT_frenesas_vaarg);
+    Opts.RenesasRL78CodeModel = Args.hasArg(OPT_mfar_code) ? 1 : 0;
+    Opts.RenesasRL78DataModel = Args.hasArg(OPT_mfar_data) ? 1 : 0;
+    Opts.setRenesasRL78RomModel(
+        Args.hasArg(OPT_mfar_rom) ? LangOptions::RL78RomModelKind::Far
+                                  : Args.hasArg(OPT_mcommon_rom)
+                                        ? LangOptions::RL78RomModelKind::Common
+                                        : LangOptions::RL78RomModelKind::Near);
+  }
+
   if (const Arg *A = Args.getLastArg(OPT_fms_compatibility_version)) {
     VersionTuple VT;
     if (VT.tryParse(A->getValue()))
@@ -3299,6 +3316,14 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
 
   Opts.CompleteMemberPointers = Args.hasArg(OPT_fcomplete_member_pointers);
   Opts.BuildingPCHWithObjectFile = Args.hasArg(OPT_building_pch_with_obj);
+
+  if (Arg *A = Args.getLastArg(OPT_finput_charset)) {
+    Opts.InputCharset = A->getValue();
+  }
+
+  if (Arg *A = Args.getLastArg(OPT_fexec_charset)) {
+    Opts.ExecCharset = A->getValue();
+  }
 }
 
 static bool isStrictlyPreprocessorAction(frontend::ActionKind Action) {

@@ -182,6 +182,7 @@ struct Configuration {
   bool printIcfSections;
   bool relocatable;
   bool relrPackDynRelocs;
+  bool RL78FarCode;
   bool saveTemps;
   bool singleRoRx;
   bool shared;

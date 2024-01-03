@@ -118,10 +118,10 @@ const char *ContentCache::getInvalidBOM(StringRef BufStr) {
   return InvalidBOM;
 }
 
-const llvm::MemoryBuffer *ContentCache::getBuffer(DiagnosticsEngine &Diag,
-                                                  FileManager &FM,
-                                                  SourceLocation Loc,
-                                                  bool *Invalid) const {
+const llvm::MemoryBuffer *
+ContentCache::getBuffer(DiagnosticsEngine &Diag, FileManager &FM,
+                        SourceLocation Loc, bool *Invalid,
+                        llvm::CharSetConverter *Converter) const {
   // Lazily create the Buffer for ContentCaches that wrap files.  If we already
   // computed it, just return what we have.
   if (Buffer.getPointer() || !ContentsEntry) {
@@ -191,12 +191,31 @@ const llvm::MemoryBuffer *ContentCache::getBuffer(DiagnosticsEngine &Diag,
     if (Invalid) *Invalid = true;
     return Buffer.getPointer();
   }
+  
+  // If -finput-charset was different from UTF-8, convert the buffer to UTF-8
+  if (Converter) {
+    StringRef foo = BufferOrError.get()->getBuffer();
+    SmallVector<char, 255> Result;
+    Result.resize(foo.size());
+    std::error_code error = Converter->convert(foo, Result);
+    if(error.value())
+      Diag.Report(Loc, diag::err_file_conversion_failed)
+          << ContentsEntry->getName() 
+          << error.message();
 
-  Buffer.setPointer(BufferOrError->release());
+    std::unique_ptr<llvm::WritableMemoryBuffer> wb =
+        llvm::WritableMemoryBuffer::getNewUninitMemBuffer(Result.size());
+    for (size_t i = 0; i < Result.size(); i++) {
+      wb.get()->getBufferStart()[i] = Result[i];
+    }
+    Buffer.setPointer(wb.release());
+  } else {
+    Buffer.setPointer(BufferOrError->release());
+  }
 
   // Check that the file's size is the same as in the file entry (which may
   // have come from a stat cache).
-  if (getRawBuffer()->getBufferSize() != (size_t)ContentsEntry->getSize()) {
+  if (!Converter && getRawBuffer()->getBufferSize() != (size_t)ContentsEntry->getSize()) {
     if (Diag.isDiagnosticInFlight())
       Diag.SetDelayedDiagnostic(diag::err_file_modified,
                                 ContentsEntry->getName());

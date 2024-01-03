@@ -825,6 +825,12 @@ void TextNodeDumper::VisitUnaryExprOrTypeTraitExpr(
   case UETT_PreferredAlignOf:
     OS << " __alignof";
     break;
+  case UETT_SecTop:
+    OS << " __sectop";
+    break;
+  case UETT_SecEnd:
+    OS << " __secend";
+    break;
   }
   if (Node->isArgumentType())
     dumpType(Node->getArgumentType());

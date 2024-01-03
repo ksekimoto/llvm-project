@@ -33,7 +33,9 @@ static const unsigned SPIRAddrSpaceMap[] = {
     0, // cuda_shared
     0, // ptr32_sptr
     0, // ptr32_uptr
-    0  // ptr64
+    0,  // ptr64
+    0, // __near
+    0 // __far
 };
 
 class LLVM_LIBRARY_VISIBILITY SPIRTargetInfo : public TargetInfo {

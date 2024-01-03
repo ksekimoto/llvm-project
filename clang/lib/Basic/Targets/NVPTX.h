@@ -35,7 +35,9 @@ static const unsigned NVPTXAddrSpaceMap[] = {
     3, // cuda_shared
     0, // ptr32_sptr
     0, // ptr32_uptr
-    0  // ptr64
+    0, // ptr64
+    0, // __near
+    0, // __far
 };
 
 /// The DWARF address class. Taken from

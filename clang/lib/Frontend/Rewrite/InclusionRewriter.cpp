@@ -46,9 +46,9 @@ class InclusionRewriter : public PPCallbacks {
   /// Tracks where inclusions that change the file are found.
   std::map<unsigned, IncludedFile> FileIncludes;
   /// Tracks where inclusions that import modules are found.
-  std::map<unsigned, const Module *> ModuleIncludes;
+  std::map<unsigned, const clang::Module *> ModuleIncludes;
   /// Tracks where inclusions that enter modules (in a module build) are found.
-  std::map<unsigned, const Module *> ModuleEntryIncludes;
+  std::map<unsigned, const clang::Module *> ModuleEntryIncludes;
   /// Tracks where #if and #elif directives get evaluated and whether to true.
   std::map<unsigned, bool> IfConditions;
   /// Used transitively for building up the FileIncludes mapping over the
@@ -66,7 +66,7 @@ public:
   void handleModuleBegin(Token &Tok) {
     assert(Tok.getKind() == tok::annot_module_begin);
     ModuleEntryIncludes.insert({Tok.getLocation().getRawEncoding(),
-                                (Module *)Tok.getAnnotationValue()});
+                                (clang::Module *)Tok.getAnnotationValue()});
   }
 private:
   void FileChanged(SourceLocation Loc, FileChangeReason Reason,
@@ -78,7 +78,7 @@ private:
                           StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange, const FileEntry *File,
                           StringRef SearchPath, StringRef RelativePath,
-                          const Module *Imported,
+                          const clang::Module *Imported,
                           SrcMgr::CharacteristicKind FileType) override;
   void If(SourceLocation Loc, SourceRange ConditionRange,
           ConditionValueKind ConditionValue) override;
@@ -87,7 +87,7 @@ private:
   void WriteLineInfo(StringRef Filename, int Line,
                      SrcMgr::CharacteristicKind FileType,
                      StringRef Extra = StringRef());
-  void WriteImplicitModuleImport(const Module *Mod);
+  void WriteImplicitModuleImport(const clang::Module *Mod);
   void OutputContentUpTo(const MemoryBuffer &FromFile,
                          unsigned &WriteFrom, unsigned WriteTo,
                          StringRef EOL, int &lines,
@@ -96,8 +96,8 @@ private:
                            const MemoryBuffer &FromFile, StringRef EOL,
                            unsigned &NextToWrite, int &Lines);
   const IncludedFile *FindIncludeAtLocation(SourceLocation Loc) const;
-  const Module *FindModuleAtLocation(SourceLocation Loc) const;
-  const Module *FindEnteredModule(SourceLocation Loc) const;
+  const clang::Module *FindModuleAtLocation(SourceLocation Loc) const;
+  const clang::Module *FindEnteredModule(SourceLocation Loc) const;
   bool IsIfAtLocationTrue(SourceLocation Loc) const;
   StringRef NextIdentifierName(Lexer &RawLex, Token &RawToken);
 };
@@ -146,7 +146,7 @@ void InclusionRewriter::WriteLineInfo(StringRef Filename, int Line,
   OS << MainEOL;
 }
 
-void InclusionRewriter::WriteImplicitModuleImport(const Module *Mod) {
+void InclusionRewriter::WriteImplicitModuleImport(const clang::Module *Mod) {
   OS << "#pragma clang module import " << Mod->getFullModuleName(true)
      << " /* clang -frewrite-includes: implicit import */" << MainEOL;
 }
@@ -196,7 +196,7 @@ void InclusionRewriter::InclusionDirective(SourceLocation HashLoc,
                                            const FileEntry * /*File*/,
                                            StringRef /*SearchPath*/,
                                            StringRef /*RelativePath*/,
-                                           const Module *Imported,
+                                           const clang::Module *Imported,
                                            SrcMgr::CharacteristicKind FileType){
   if (Imported) {
     auto P = ModuleIncludes.insert(
@@ -236,7 +236,7 @@ InclusionRewriter::FindIncludeAtLocation(SourceLocation Loc) const {
 
 /// Simple lookup for a SourceLocation (specifically one denoting the hash in
 /// an inclusion directive) in the map of module inclusion information.
-const Module *
+const clang::Module *
 InclusionRewriter::FindModuleAtLocation(SourceLocation Loc) const {
   const auto I = ModuleIncludes.find(Loc.getRawEncoding());
   if (I != ModuleIncludes.end())
@@ -246,7 +246,7 @@ InclusionRewriter::FindModuleAtLocation(SourceLocation Loc) const {
 
 /// Simple lookup for a SourceLocation (specifically one denoting the hash in
 /// an inclusion directive) in the map of module entry information.
-const Module *
+const clang::Module *
 InclusionRewriter::FindEnteredModule(SourceLocation Loc) const {
   const auto I = ModuleEntryIncludes.find(Loc.getRawEncoding());
   if (I != ModuleEntryIncludes.end())
@@ -426,10 +426,10 @@ void InclusionRewriter::Process(FileID FileId,
               WriteLineInfo(FileName, Line - 1, FileType, "");
             StringRef LineInfoExtra;
             SourceLocation Loc = HashToken.getLocation();
-            if (const Module *Mod = FindModuleAtLocation(Loc))
+            if (const clang::Module *Mod = FindModuleAtLocation(Loc))
               WriteImplicitModuleImport(Mod);
             else if (const IncludedFile *Inc = FindIncludeAtLocation(Loc)) {
-              const Module *Mod = FindEnteredModule(Loc);
+              const clang::Module *Mod = FindEnteredModule(Loc);
               if (Mod)
                 OS << "#pragma clang module begin "
                    << Mod->getFullModuleName(true) << "\n";

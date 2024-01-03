@@ -15,12 +15,15 @@
 #define LLVM_CLANG_LEX_LITERALSUPPORT_H
 
 #include "clang/Basic/CharInfo.h"
+#include "clang/Basic/LangOptions.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/TokenKinds.h"
+#include "clang/Lex/LiteralConverter.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/CharSet.h"
 #include "llvm/Support/DataTypes.h"
 
 namespace clang {
@@ -161,9 +164,11 @@ private:
 
   /// SkipBinaryDigits - Read and skip over any binary digits, up to End.
   /// Return a pointer to the first non-binary digit or End.
-  const char *SkipBinaryDigits(const char *ptr) {
+  const char *SkipBinaryDigits(const LangOptions &LangOpts, const char *ptr) {
+    // CC-RL permits only for binary numbers the _ as digit separator
     while (ptr != ThisTokEnd &&
-           (*ptr == '0' || *ptr == '1' || isDigitSeparator(*ptr)))
+           (*ptr == '0' || *ptr == '1' || isDigitSeparator(*ptr) ||
+            LangOpts.RenesasExt && *ptr == '_'))
       ptr++;
     return ptr;
   }
@@ -180,9 +185,8 @@ class CharLiteralParser {
   SmallString<32> UDSuffixBuf;
   unsigned UDSuffixOffset;
 public:
-  CharLiteralParser(const char *begin, const char *end,
-                    SourceLocation Loc, Preprocessor &PP,
-                    tok::TokenKind kind);
+  CharLiteralParser(const char *begin, const char *end, SourceLocation Loc,
+                    Preprocessor &PP, tok::TokenKind kind);
 
   bool hadError() const { return HadError; }
   bool isAscii() const { return Kind == tok::char_constant; }
@@ -207,6 +211,7 @@ class StringLiteralParser {
   const LangOptions &Features;
   const TargetInfo &Target;
   DiagnosticsEngine *Diags;
+  LiteralConverter *LiteralConv;
 
   unsigned MaxTokenLength;
   unsigned SizeBound;
@@ -218,16 +223,17 @@ class StringLiteralParser {
   unsigned UDSuffixToken;
   unsigned UDSuffixOffset;
 public:
-  StringLiteralParser(ArrayRef<Token> StringToks,
-                      Preprocessor &PP, bool Complain = true);
-  StringLiteralParser(ArrayRef<Token> StringToks,
-                      const SourceManager &sm, const LangOptions &features,
-                      const TargetInfo &target,
+  StringLiteralParser(ArrayRef<Token> StringToks, Preprocessor &PP,
+                      bool Complain = true,
+                      ConversionAction Action = ToExecCharset);
+  StringLiteralParser(ArrayRef<Token> StringToks, const SourceManager &sm,
+                      const LangOptions &features, const TargetInfo &target,
                       DiagnosticsEngine *diags = nullptr)
-    : SM(sm), Features(features), Target(target), Diags(diags),
-      MaxTokenLength(0), SizeBound(0), CharByteWidth(0), Kind(tok::unknown),
-      ResultPtr(ResultBuf.data()), hadError(false), Pascal(false) {
-    init(StringToks);
+      : SM(sm), Features(features), Target(target), Diags(diags),
+        LiteralConv(nullptr), MaxTokenLength(0), SizeBound(0), CharByteWidth(0),
+        Kind(tok::unknown), ResultPtr(ResultBuf.data()), hadError(false),
+        Pascal(false) {
+    init(StringToks, NoConversion);
   }
 
 
@@ -273,7 +279,7 @@ public:
   static bool isValidUDSuffix(const LangOptions &LangOpts, StringRef Suffix);
 
 private:
-  void init(ArrayRef<Token> StringToks);
+  void init(ArrayRef<Token> StringToks, ConversionAction Action);
   bool CopyStringFragment(const Token &Tok, const char *TokBegin,
                           StringRef Fragment);
   void DiagnoseLexingError(SourceLocation Loc);
