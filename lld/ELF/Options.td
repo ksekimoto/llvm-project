@@ -358,6 +358,10 @@ defm toc_optimize : B<"toc-optimize",
     "(PowerPC64) Enable TOC related optimizations (default)",
     "(PowerPC64) Disable TOC related optimizations">;
 
+defm stride_dsp_memory_area : B<"stride-dsp-memory-area",
+    "(RL78) Enable Stride DSP Memory Area",
+    "(RL78) Disable Stride DSP Memory Area (default)">;
+
 def trace: F<"trace">, HelpText<"Print the names of the input files">;
 
 defm trace_symbol: Eq<"trace-symbol", "Trace references to symbols">;
@@ -581,3 +585,6 @@ def: F<"Qy">;
 defm mips_got_size:
   Eq<"mips-got-size", "Max size of a single MIPS GOT. 0x10000 by default.">,
   Flags<[HelpHidden]>;
+
+// RL78 option used to disable plt usage
+def mfar_code: F<"mfar-code">, HelpText<"Use far code model, disables PLT usage.">;

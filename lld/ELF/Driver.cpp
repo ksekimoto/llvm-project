@@ -929,6 +929,7 @@ static void readConfigs(opt::InputArgList &args) {
       args.getLastArgValue(OPT_print_symbol_order);
   config->rpath = getRpath(args);
   config->relocatable = args.hasArg(OPT_relocatable);
+  config->RL78FarCode = args.hasArg(OPT_mfar_code);
   config->saveTemps = args.hasArg(OPT_save_temps);
   config->searchPaths = args::getStrings(args, OPT_library_path);
   config->sectionStartMap = getSectionStartMap(args);
@@ -1162,6 +1163,9 @@ static void setConfigs(opt::InputArgList &args) {
 
   config->tocOptimize =
       args.hasFlag(OPT_toc_optimize, OPT_no_toc_optimize, m == EM_PPC64);
+
+  config->strideDSPMemoryArea =
+    args.hasFlag(OPT_stride_dsp_memory_area, OPT_no_stride_dsp_memory_area, false);
 }
 
 // Returns a value of "-format" option.

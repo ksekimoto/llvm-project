@@ -79,6 +79,13 @@ static cl::opt<unsigned> AsmMacroMaxNestingDepth(
      "asm-macro-max-nesting-depth", cl::init(20), cl::Hidden,
      cl::desc("The maximum nesting depth allowed for assembly macros."));
 
+bool EnableRL78CCRLAsmSyntax;
+static cl::opt<bool, true>
+    Debug("rl78-ccrl-asm-syntax",
+          cl::desc("Enable CC-RL asm syntax parsing for RL78"), cl::Hidden,
+          cl::location(EnableRL78CCRLAsmSyntax), cl::init(false));
+
+
 namespace {
 
 /// Helper types for tracking macro definitions.
@@ -696,6 +703,7 @@ private:
   bool NoWarn;
 
   std::vector<std::string> CCRLMacroBodies;
+  std::vector<std::string> CCRLMacroNames;
 
   MCAsmMacro *parseCCRLMacroLikeBody(SMLoc DirectiveLoc, int64_t *RepeatCount);
   bool parseDirectiveCCRLRept(SMLoc DirectiveLoc, StringRef Dir);
@@ -710,6 +718,10 @@ private:
   bool parseDirectiveCCRLElse(SMLoc DirectiveLoc); // "$ELSE"
   bool parseDirectiveCCRLEndIf(SMLoc DirectiveLoc); // $ENDIF
   bool parseInclude(bool IsBinary); // $INCLUDE and $BINCLUDE
+
+  bool parseBitPositional(const MCExpr *&Res, SMLoc &FirstTokenLoc,
+                          std::pair<StringRef, StringRef> Parts);
+
 protected:
   bool parseStatement(ParseStatementInfo &Info,
                       MCAsmParserSemaCallback *SI) override;
@@ -725,6 +737,7 @@ public:
 
   bool Warning(SMLoc L, const Twine &Msg, SMRange Range = None) override;
   bool parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc) override;
+  bool parseIdentifier(StringRef &Res) override;
 };
 
 } // end anonymous namespace
@@ -6065,6 +6078,10 @@ bool AsmParser::parseMSInlineAsm(
 
 bool RL78AsmParser::parseStatement(ParseStatementInfo &Info,
                                    MCAsmParserSemaCallback *SI) {
+
+   if(!EnableRL78CCRLAsmSyntax)
+       return AsmParser::parseStatement(Info, nullptr);
+
   // Eat initial spaces and comments.
   while (Lexer.is(AsmToken::Space))
     Lex();
@@ -6080,40 +6097,42 @@ bool RL78AsmParser::parseStatement(ParseStatementInfo &Info,
   AsmToken ID = getTok();
   SMLoc IDLoc = ID.getLoc();
   if (ID.getKind() == AsmToken::TokenKind::Dollar &&
-       (NextTok.compare("IFDEF") == 0 || NextTok.compare("IFNDEF") == 0 ||
-       NextTok.compare("IF") == 0 || NextTok.compare("IFN") == 0 ||
-       NextTok.compare("ELSE") == 0 || NextTok.compare("ELSEIF") == 0 ||
-       NextTok.compare("ELSEIFN") == 0 || NextTok.compare("ENDIF") == 0 ||
-       NextTok.compare("INCLUDE") == 0 || NextTok.compare("BINCLUDE") == 0 || 
-       NextTok.compare("WARNING") == 0 || NextTok.compare("NOWARNING") == 0)) {
+      (NextTok.compare_lower("IFDEF") == 0 || NextTok.compare_lower("IFNDEF") == 0 ||
+       NextTok.compare_lower("IF") == 0 || NextTok.compare_lower("IFN") == 0 ||
+       NextTok.compare_lower("ELSE") == 0 || NextTok.compare_lower("ELSEIF") == 0 ||
+       NextTok.compare_lower("ELSEIFN") == 0 || NextTok.compare_lower("ENDIF") == 0 ||
+       NextTok.compare_lower("INCLUDE") == 0 && !TheCondState.Ignore ||
+       NextTok.compare_lower("BINCLUDE") == 0 && !TheCondState.Ignore ||
+       NextTok.compare_lower("WARNING") == 0 && !TheCondState.Ignore ||
+       NextTok.compare_lower("NOWARNING") == 0 && !TheCondState.Ignore)) {
     Lex(); // Eat the $.
     Lex(); // Eat the directive.
-    if (NextTok.compare("IFDEF") == 0)
+    if (NextTok.compare_lower("IFDEF") == 0)
       return parseDirectiveCCRLIfdef(IDLoc, true);
-    if (NextTok.compare("IFNDEF") == 0)
+    if (NextTok.compare_lower("IFNDEF") == 0)
       return parseDirectiveCCRLIfdef(IDLoc, false);
-    if (NextTok.compare("IF") == 0)
+    if (NextTok.compare_lower("IF") == 0)
       return parseDirectiveCCRLIf(IDLoc, true);
-    if (NextTok.compare("IFN") == 0)
+    if (NextTok.compare_lower("IFN") == 0)
       return parseDirectiveCCRLIf(IDLoc, false);
-    if (NextTok.compare("ELSE") == 0)
+    if (NextTok.compare_lower("ELSE") == 0)
       return parseDirectiveCCRLElse(IDLoc);
-    if (NextTok.compare("ELSEIF") == 0)
+    if (NextTok.compare_lower("ELSEIF") == 0)
       return parseDirectiveCCRLElseIf(IDLoc, true);
-    if (NextTok.compare("ELSEIFN") == 0)
+    if (NextTok.compare_lower("ELSEIFN") == 0)
       return parseDirectiveCCRLElseIf(IDLoc, false);
-    if (NextTok.compare("ENDIF") == 0)
+    if (NextTok.compare_lower("ENDIF") == 0)
       return parseDirectiveCCRLEndIf(IDLoc);
-    if (NextTok.compare("INCLUDE") == 0)
+    if (NextTok.compare_lower("INCLUDE") == 0)
       return parseInclude(false);
-    if (NextTok.compare("BINCLUDE") == 0)
+    if (NextTok.compare_lower("BINCLUDE") == 0)
       return parseInclude(true);
-    if (NextTok.compare("WARNING") == 0) {
+    if (NextTok.compare_lower("WARNING") == 0) {
       Lex();
       NoWarn = false;
       return false;
     }
-    if (NextTok.compare("NOWARNING") == 0) {
+    if (NextTok.compare_lower("NOWARNING") == 0) {
       Lex();
       NoWarn = true;
       return false;
@@ -6121,39 +6140,55 @@ bool RL78AsmParser::parseStatement(ParseStatementInfo &Info,
   }
   
 
-  // Ignore the statement if in the middle of inactive conditional
-  // (e.g. ".if 0").
-  if (TheCondState.Ignore) {
-    eatToEndOfStatement();
-    return false;
-  }
   StringRef IDVal;
   // .MACRO, unlike the .macro directive, is preceeded by the macro name:
   // name .MACRO [formal-parameter[, ... ]]
   // same for .CSEG, .DSEG, .BSEG (the name being optional)
   if (ID.getKind() == AsmToken::TokenKind::Identifier) {
 
-    // Since we need it for bit positionals, we want to handle .extern
-    if (ID.getString().compare(".extern") == 0) {
-      Lex();
-      return parseDirectiveSymbolAttribute(MCSA_Global);
-    }
-
-    if (NextTok.compare(".MACRO") == 0 || NextTok.compare(".CSEG") == 0 ||
-        ID.getString().compare(".CSEG") == 0 || NextTok.compare(".DSEG") == 0 ||
-        ID.getString().compare(".DSEG") == 0 || NextTok.compare(".BSEG") == 0 ||
-        ID.getString().compare(".BSEG") == 0 ||
-        ID.getString().compare(".REPT") == 0 ||
-        ID.getString().compare(".IRP") == 0 ||
-        ID.getString().compare(".ENDM") == 0 || NextTok.compare(".SET") == 0 ||
-        NextTok.compare(".EQU") == 0 || NextTok.compare(".VECTOR") == 0) {
-      if (parseIdentifier(IDVal) && !TheCondState.Ignore)
+    if ((ID.getString().compare_lower(".SECTION") == 0 ||
+         ID.getString().compare_lower(".ORG") == 0 ||
+         ID.getString().compare_lower(".OFFSET") == 0 ||
+         ID.getString().compare_lower(".DB") == 0 ||
+         ID.getString().compare_lower(".DB2") == 0 ||
+         ID.getString().compare_lower(".DB4") == 0 ||
+         ID.getString().compare_lower(".DB8") == 0 ||
+         ID.getString().compare_lower(".DS") == 0 ||
+         ID.getString().compare_lower(".ALIGN") == 0 ||
+         ID.getString().compare_lower(".PUBLIC") == 0 ||
+         ID.getString().compare_lower(".EXTERN") == 0 ||
+         ID.getString().compare_lower(".LINE") == 0 ||
+         ID.getString().compare_lower("._LINE_TOP") == 0 ||
+         ID.getString().compare_lower("._LINE_END") == 0 ||
+         ID.getString().compare_lower(".STACK") == 0 ||
+         ID.getString().compare_lower(".TYPE") == 0 ||
+         NextTok.compare_lower(".MACRO") == 0 ||
+         NextTok.compare_lower(".CSEG") == 0 ||
+         ID.getString().compare_lower(".CSEG") == 0 ||
+         NextTok.compare_lower(".DSEG") == 0 ||
+         ID.getString().compare_lower(".DSEG") == 0 ||
+         NextTok.compare_lower(".BSEG") == 0 ||
+         ID.getString().compare_lower(".BSEG") == 0 ||
+         ID.getString().compare_lower(".REPT") == 0 ||
+         ID.getString().compare_lower(".IRP") == 0 ||
+         ID.getString().compare_lower(".ENDM") == 0 ||
+         NextTok.compare_lower(".SET") == 0 ||
+         NextTok.compare_lower(".EQU") == 0 ||
+         NextTok.compare_lower(".VECTOR") == 0) &&
+        !TheCondState.Ignore) {
+      if (parseIdentifier(IDVal))
         return Error(IDLoc, "unexpected token at start of statement");
-      if (ID.getString().compare(".REPT") == 0)
+
+      // Save CC-RL macro name, so we can forward gcc styled macro parameter
+      // handling to AsmParser.
+      if (NextTok.compare_lower(".MACRO") == 0)
+        CCRLMacroNames.push_back(IDVal);
+
+      if (ID.getString().compare_lower(".REPT") == 0)
         return parseDirectiveCCRLRept(IDLoc, IDVal);
-      if (ID.getString().compare(".IRP") == 0)
+      if (ID.getString().compare_lower(".IRP") == 0)
         return parseDirectiveCCRLIrp(IDLoc, IDVal);
-      if (ID.getString().compare(".ENDM") == 0)
+      if (ID.getString().compare_lower(".ENDM") == 0)
         return parseDirectiveEndM(IDLoc);
       // defer parsing to RL78AsmParser
       return getTargetParser().ParseDirective(ID);
@@ -6307,6 +6342,12 @@ MCAsmMacro *RL78AsmParser::parseCCRLMacroLikeBody(SMLoc DirectiveLoc,
 // Parse the macro instantiation arguments.
 bool RL78AsmParser::parseMacroArguments(const MCAsmMacro *M,
                                         MCAsmMacroArguments &A) {
+  // If it's not a CCRL style macro, fallback to the original handling.
+  if (!EnableRL78CCRLAsmSyntax || !M ||
+      std::find(CCRLMacroNames.begin(), CCRLMacroNames.begin(),
+                M->Name.str()) == CCRLMacroNames.end())
+    return AsmParser::parseMacroArguments(M, A);
+
   const unsigned NParameters = M ? M->Parameters.size() : 0;
   SmallVector<SMLoc, 4> FALocs;
 
@@ -6657,7 +6698,9 @@ bool RL78AsmParser::parseInclude(bool IsBinary) {
 }
 
 bool RL78AsmParser::Warning(SMLoc L, const Twine &Msg, SMRange Range) {
- if(getTargetParser().getTargetOptions().MCNoWarn || NoWarn)
+  if (!EnableRL78CCRLAsmSyntax)
+    return AsmParser::Warning(L, Msg, Range);
+  if (getTargetParser().getTargetOptions().MCNoWarn || NoWarn)
     return false;
   if (getTargetParser().getTargetOptions().MCFatalWarnings)
     return Error(L, Msg, Range);
@@ -6666,17 +6709,109 @@ bool RL78AsmParser::Warning(SMLoc L, const Twine &Msg, SMRange Range) {
   return false;
 }
 
+bool RL78AsmParser::parseBitPositional(const MCExpr *&Res, SMLoc &FirstTokenLoc,
+                                       std::pair<StringRef, StringRef> Parts) {
+
+  // Create the correct expression parts: sym.sym or abs.sym or sym.abs or
+  // abs.abs RL78AsmParser will validate them based on usage.
+  const MCExpr *AddressExpr;
+  const MCExpr *BitPosExpr;
+  int64_t BitPositionValue;
+
+  if (Parts.second.size() == 1 && Parts.second[0] >= '0' &&
+      Parts.second[0] <= '7') {
+    BitPositionValue = Parts.second[0] - '0';
+  } else {
+    const MCSymbol *BitSym = Ctx.lookupSymbol(Parts.second);
+
+    // If the bit part does not resolve to an absolute value, bail out
+    // of treating this as a bit positional.
+    if (!BitSym || !BitSym->isVariable() ||
+        !BitSym->getVariableValue()->evaluateAsAbsolute(BitPositionValue)) {
+      return false;
+    }
+  }
+
+  BitPosExpr = MCConstantExpr::create(BitPositionValue, Ctx);
+
+  if (Parts.first.startswith("0x")) {
+    int64_t AddressValue;
+    std::stringstream ss;
+    ss << std::hex << Parts.first.str();
+    ss >> AddressValue;
+    AddressExpr = MCConstantExpr::create(AddressValue, Ctx);
+  } else if (Parts.first.compare_lower("psw") == 0) {
+    AddressExpr = MCConstantExpr::create(0xFFFFA, Ctx);
+  } else {
+    if (Parts.first.size() == 0) {
+      // Bail if don't have anything before the dot.
+      return false;
+    }
+    // See if first part is a declared symbol.
+    MCSymbol *AddressSymbol = Ctx.lookupSymbol(Parts.first);
+    if (!AddressSymbol) {
+      // Hack to wait with the creation of symbols, since they might be
+      // register names.
+      AddressSymbol =
+          Ctx.createTempSymbol("__$__" + Parts.first + "__$__", true);
+    }
+    AddressExpr = MCSymbolRefExpr::create(
+        AddressSymbol, MCSymbolRefExpr::VK_None, Ctx, FirstTokenLoc);
+  }
+
+  // Hack to pass both parts to RL78MCExpr
+  Res = MCBinaryExpr::create(MCBinaryExpr::Opcode::LAnd, AddressExpr,
+                             BitPosExpr, Ctx, FirstTokenLoc);
+  Res =
+      getTargetParser().createTargetUnaryExpr(Res, AsmToken::BitPosition, Ctx);
+  Lex();
+  return true;
+}
+
+bool RL78AsmParser::parseIdentifier(StringRef &Res) {
+  if (Lexer.is(AsmToken::At)) {
+    // Handle  @$IMM_.
+    SMLoc PrefixLoc = getLexer().getLoc();
+
+    AsmToken Buf[2];
+    Lexer.peekTokens(Buf, false);
+    if (Buf[0].getKind() == AsmToken::Dollar &&
+        Buf[1].getKind() == AsmToken::Identifier &&
+        PrefixLoc.getPointer() + 1 == Buf[0].getLoc().getPointer() &&
+        Buf[0].getLoc().getPointer() + 1 == Buf[1].getLoc().getPointer() &&
+        Buf[1].getString().startswith("IMM_")) {
+      // Eat the @.
+      Lexer.Lex();
+      // Eat the $.
+      Lexer.Lex();
+      // Construct the joined identifier and consume the token.
+      Res = StringRef(PrefixLoc.getPointer(),
+                      getTok().getIdentifier().size() + 2);
+      // Eat the identifier.
+      Lexer.Lex();
+      return false;
+    }
+  }
+  return AsmParser::parseIdentifier(Res);
+}
+
 /// Parse a primary expression and return it.
 bool RL78AsmParser::parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc) {
   SMLoc FirstTokenLoc = getLexer().getLoc();
   AsmToken::TokenKind FirstTokenKind = Lexer.getKind();
   StringRef Token = Lexer.getTok().getString();
+
+  bool IsBitPositional = false;
+
   switch (FirstTokenKind) {
   default:
     break;
   // SYM2.3
   // SYM2.SYM3
   case AsmToken::Identifier:
+  // 0xFFE30.3
+  // 0xFFE30.SYM3
+  case AsmToken::BitPosition:
     if (Token.compare_lower("psw") == 0) {
       Res = MCConstantExpr::create(0xFFFFA, Ctx);
       Lex();
@@ -6698,64 +6833,24 @@ bool RL78AsmParser::parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc) {
         Lex();
         return !Res;
       }
+
+      if (Token.contains('.') && !Ctx.lookupSymbol(Token) &&
+          parseBitPositional(Res, FirstTokenLoc, Token.split('.')))
+        return !Res;
     }
-  // Fallthrough
-  // 0xFFE30.3
-  // 0xFFE22.SYM3
-  case AsmToken::BitPosition: {
-    if (Token.contains('.') && !Ctx.lookupSymbol(Token)) {
-      // Create the correct expression parts: sym.sym or abs.sym or sym.abs or
-      // abs.abs RL78AsmParser will validate them based on usage.
-      const MCExpr *AddressExpr;
-      const MCExpr *BitPosExpr;
-      std::pair<StringRef, StringRef> Parts = Token.split('.');
+    break;
+  case AsmToken::Integer: {
+    // Greedy aproach to create local symbols for unique integer values, that
+    // may need to be referenced when evaluating fixups...
+    // TODO: See if there's a better approach.
+    int64_t Result = Lexer.getTok().getIntVal();
+    std::string ImmSymName = "@$IMM_" + std::to_string(Result);
+    if (!getContext().lookupSymbol(ImmSymName)) {
+      MCSymbol *ImmSym = getContext().getOrCreateSymbol(ImmSymName);
 
-      int64_t BitPositionValue;
-      if (Parts.second.size() == 1 && Parts.second[0] >= '0' &&
-          Parts.second[0] <= '7') {
-        BitPositionValue = Parts.second[0] - '0';
-      } else {
-        const MCSymbol *BitSym = Ctx.lookupSymbol(Parts.second);
-
-        // If the bit part does not resolve to an absolute value, bail out
-        // of treating this as a bit positional.
-        if (!BitSym || !BitSym->isVariable() ||
-            !BitSym->getVariableValue()->evaluateAsAbsolute(BitPositionValue))
-          break;
-      }
-
-      BitPosExpr = MCConstantExpr::create(BitPositionValue, Ctx);
-
-      if (Parts.first.startswith("0x")) {
-        int64_t AddressValue;
-        std::stringstream ss;
-        ss << std::hex << Parts.first.str();
-        ss >> AddressValue;
-        AddressExpr = MCConstantExpr::create(AddressValue, Ctx);
-      } else if (Parts.first.compare_lower("psw") == 0) {
-        AddressExpr = MCConstantExpr::create(0xFFFFA, Ctx);
-      } else {
-        if (Parts.first.size() == 0)
-          break;
-        // See if first part is a declared symbol.
-        MCSymbol *AddressSymbol = Ctx.lookupSymbol(Parts.first);
-        if (!AddressSymbol) {
-          // Hack to wait with the creation of symbols, since they might be
-          // register names.
-          AddressSymbol =
-              Ctx.createTempSymbol("__$__" + Parts.first + "__$__", true);
-        }
-        AddressExpr = MCSymbolRefExpr::create(
-            AddressSymbol, MCSymbolRefExpr::VK_None, Ctx, FirstTokenLoc);
-      }
-
-      // Hack to pass both parts to RL78MCExpr
-      Res = MCBinaryExpr::create(MCBinaryExpr::Opcode::LAnd, AddressExpr,
-                                 BitPosExpr, Ctx, EndLoc);
-      Res = getTargetParser().createTargetUnaryExpr(Res, AsmToken::BitPosition,
-                                                    Ctx);
-      Lex();
-      return !Res;
+      getStreamer().EmitSymbolAttribute(ImmSym, MCSA_Local);
+      getStreamer().EmitAssignment(
+          ImmSym, MCConstantExpr::create(Result, getContext()));
     }
     break;
   }
@@ -6788,6 +6883,9 @@ bool RL78AsmParser::parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc) {
     return !Res;
   case AsmToken::DataPos:
   case AsmToken::BitPos: {
+    if (!EnableRL78CCRLAsmSyntax)
+      break;
+
     Lex(); // Eat the operator.
     if (Lexer.isNot(AsmToken::LParen))
       return TokError("expected '(' after operator");
@@ -6820,22 +6918,8 @@ bool RL78AsmParser::parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc) {
       Res = MCConstantExpr::create(BitValue, getContext());
     return !Res;
   }
-  case AsmToken::Integer: {
-    // Greedy aproach to create local symbols for unique integer values, that
-    // may need to be referenced when evaluating fixups...
-    // TODO: See if there's a better approach.
-    std::string ImmSymName = "@$IMM_" + Token.str();
-    if (!getContext().lookupSymbol(ImmSymName)) {
-      MCSymbol *ImmSym = getContext().getOrCreateSymbol(ImmSymName);
-
-      getStreamer().EmitSymbolAttribute(ImmSym, MCSA_Local);
-      getStreamer().EmitAssignment(
-          ImmSym,
-          MCConstantExpr::create(Lexer.getTok().getIntVal(), getContext()));
-    }
-    break;
-  }
   case AsmToken::LParen:
+
     Lex(); // Eat the '('.
     if (parseExpression(Res))
       return true;
@@ -6853,6 +6937,8 @@ bool RL78AsmParser::parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc) {
       BitPositionValue = Token[1] - '0';
 
     } else if (NextToken.is(AsmToken::Identifier) && Token.startswith(".")) {
+      if (!EnableRL78CCRLAsmSyntax)
+        break;
       // Or (0xf230+4).SYM
       const MCSymbol *BitSym =
           Ctx.lookupSymbol(Token.substr(1, Token.size() - 1));

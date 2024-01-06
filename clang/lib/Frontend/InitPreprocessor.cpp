@@ -755,6 +755,14 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     }
   }
 
+  // Macros to help identify the narrow and wide character sets. This is set
+  // to fexec-charset. If fexec-charset is not specified, the default is the
+  // system charset.
+  if (!LangOpts.ExecCharset.empty())
+    Builder.defineMacro("__clang_literal_encoding__", LangOpts.ExecCharset);
+  else
+    Builder.defineMacro("__clang_literal_encoding__", "UTF-8");
+
   if (LangOpts.Optimize)
     Builder.defineMacro("__OPTIMIZE__");
   if (LangOpts.OptimizeSize)

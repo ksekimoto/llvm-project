@@ -2410,11 +2410,11 @@ static llvm::Constant *EmitFunctionDeclPointer(CodeGenModule &CGM,
       // Ugly case: for a K&R-style definition, the type of the definition
       // isn't the same as the type of a use.  Correct for this with a
       // bitcast.
-      QualType NoProtoType =
-          CGM.getContext().getFunctionNoProtoType(Proto->getReturnType());
+      QualType NoProtoType = CGM.getContext().getFunctionNoProtoType(
+          Proto->getReturnType(), Proto->getExtInfo());
       NoProtoType = CGM.getContext().getPointerType(NoProtoType);
-      V = llvm::ConstantExpr::getBitCast(V,
-                                      CGM.getTypes().ConvertType(NoProtoType));
+      V = llvm::ConstantExpr::getBitCast(
+          V, CGM.getTypes().ConvertType(NoProtoType));
     }
   }
   return V;
@@ -5019,7 +5019,12 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, const CGCallee &OrigCallee
   // to the function type.
   if (isa<FunctionNoProtoType>(FnType) || Chain) {
     llvm::Type *CalleeTy = getTypes().GetFunctionType(FnInfo);
-    CalleeTy = CalleeTy->getPointerTo();
+    if (isa<FunctionNoProtoType>(FnType) &&
+        cast<FunctionNoProtoType>(FnType)->getFar())
+      CalleeTy = CalleeTy->getPointerTo(
+          getContext().getTargetAddressSpace(LangAS::__far));
+    else
+      CalleeTy = CalleeTy->getPointerTo();
 
     llvm::Value *CalleePtr = Callee.getFunctionPointer();
     CalleePtr = Builder.CreateBitCast(CalleePtr, CalleeTy, "callee.knr.cast");

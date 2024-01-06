@@ -54,11 +54,6 @@ BitVector RL78RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     Reserved.set(RL78::R7);
     Reserved.set(RL78::R6);
   }
-  // Bank 1-3.
-  for (unsigned reg = RL78::RP8; reg <= RL78::RP30; ++reg)
-    Reserved.set(reg);
-  for (unsigned reg = RL78::R8; reg <= RL78::R31; ++reg)
-    Reserved.set(reg);
 
   return Reserved;
 }

@@ -513,6 +513,10 @@ class CGFunctionInfo final
   /// Whether this function has nocf_check attribute.
   unsigned NoCfCheck : 1;
 
+  unsigned Far: 1;
+
+  unsigned NonDefaultAS: 1;
+
   RequiredArgs Required;
 
   /// The struct representing all arguments passed in memory.  Only used when
@@ -599,6 +603,12 @@ public:
   /// Whether this function has nocf_check attribute.
   bool isNoCfCheck() const { return NoCfCheck; }
 
+  /// Whether this function is far.
+  bool isFar() const { return Far; }
+
+  /// Whether this function had no explicit address space.
+  bool isNonDefaultAS() const { return NonDefaultAS; }
+
   /// getASTCallingConvention() - Return the AST-specified calling
   /// convention.
   CallingConv getASTCallingConvention() const {
@@ -624,7 +634,7 @@ public:
   FunctionType::ExtInfo getExtInfo() const {
     return FunctionType::ExtInfo(isNoReturn(), getHasRegParm(), getRegParm(),
                                  getASTCallingConvention(), isReturnsRetained(),
-                                 isNoCallerSavedRegs(), isNoCfCheck());
+                                 isNoCallerSavedRegs(), isNoCfCheck(), isFar(), isNonDefaultAS());
   }
 
   CanQualType getReturnType() const { return getArgsBuffer()[0].type; }
@@ -665,6 +675,7 @@ public:
     ID.AddBoolean(HasRegParm);
     ID.AddInteger(RegParm);
     ID.AddBoolean(NoCfCheck);
+    ID.AddBoolean(Far);
     ID.AddInteger(Required.getOpaqueData());
     ID.AddBoolean(HasExtParameterInfos);
     if (HasExtParameterInfos) {
@@ -692,6 +703,7 @@ public:
     ID.AddBoolean(info.getHasRegParm());
     ID.AddInteger(info.getRegParm());
     ID.AddBoolean(info.getNoCfCheck());
+    ID.AddBoolean(info.getFar());
     ID.AddInteger(required.getOpaqueData());
     ID.AddBoolean(!paramInfos.empty());
     if (!paramInfos.empty()) {

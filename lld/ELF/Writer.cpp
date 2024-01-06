@@ -821,27 +821,29 @@ static bool isRelroSection(const OutputSection *sec) {
 // * It is easy to check if a give branch was taken.
 // * It is easy two see how similar two ranks are (see getRankProximity).
 enum RankFlags {
-  RF_NOT_ADDR_SET = 1 << 27,
-  RF_NOT_ALLOC = 1 << 26,
-  RF_PARTITION = 1 << 18, // Partition number (8 bits)
-  RF_NOT_PART_EHDR = 1 << 17,
-  RF_NOT_PART_PHDR = 1 << 16,
-  RF_NOT_INTERP = 1 << 15,
-  RF_NOT_NOTE = 1 << 14,
-  RF_WRITE = 1 << 13,
-  RF_EXEC_WRITE = 1 << 12,
-  RF_EXEC = 1 << 11,
-  RF_RODATA = 1 << 10,
-  RF_NOT_RELRO = 1 << 9,
-  RF_NOT_TLS = 1 << 8,
-  RF_BSS = 1 << 7,
-  RF_PPC_NOT_TOCBSS = 1 << 6,
-  RF_PPC_TOCL = 1 << 5,
-  RF_PPC_TOC = 1 << 4,
-  RF_PPC_GOT = 1 << 3,
-  RF_PPC_BRANCH_LT = 1 << 2,
-  RF_MIPS_GPREL = 1 << 1,
-  RF_MIPS_NOT_GOT = 1 << 0
+  RF_NOT_ADDR_SET = 1 << 29,
+  RF_NOT_ALLOC = 1 << 28,
+  RF_PARTITION = 1 << 20, // Partition number (8 bits)
+  RF_NOT_PART_EHDR = 1 << 19,
+  RF_NOT_PART_PHDR = 1 << 18,
+  RF_NOT_INTERP = 1 << 17,
+  RF_NOT_NOTE = 1 << 16,
+  RF_RL78_FAR = 1 << 15,
+  RF_WRITE = 1 << 14,
+  RF_EXEC_WRITE = 1 << 13,
+  RF_EXEC = 1 << 12,
+  RF_RODATA = 1 << 11,
+  RF_NOT_RELRO = 1 << 10,
+  RF_NOT_TLS = 1 << 9,
+  RF_BSS = 1 << 8,
+  RF_PPC_NOT_TOCBSS = 1 << 7,
+  RF_PPC_TOCL = 1 << 6,
+  RF_PPC_TOC = 1 << 5,
+  RF_PPC_GOT = 1 << 4,
+  RF_PPC_BRANCH_LT = 1 << 3,
+  RF_MIPS_GPREL = 1 << 2,
+  RF_MIPS_NOT_GOT = 1 << 1,
+  RF_RL78_NAMED_SECTION = 1 <<0
 };
 
 static unsigned getSectionRank(const OutputSection *sec) {
@@ -965,6 +967,17 @@ static unsigned getSectionRank(const OutputSection *sec) {
 
     if (sec->name != ".got")
       rank |= RF_MIPS_NOT_GOT;
+  }
+
+  if (config->emachine == EM_RL78) {
+    // We want to differentiate between far and near sections, so we allocate
+    // the "orphan" <sec>_AT<address> sections near their <sec> counter-parts.
+    if (sec->name.startswith(".bssf") || 
+        sec->name.startswith(".frodata") || sec->name.startswith(".constf"))
+      rank |= RF_RL78_FAR;
+    if (sec->name.startswith(".bss") || sec->name.startswith(".rodata") ||
+        sec->name.startswith(".frodata") || sec->name.startswith(".const"))
+      rank |= RF_RL78_NAMED_SECTION;
   }
 
   return rank;
@@ -1555,6 +1568,7 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
   ThunkCreator tc;
   AArch64Err843419Patcher a64p;
   ARMErr657417Patcher a32p;
+  config->noinhibitAssert = false;
   script->assignAddresses();
 
   int assignPasses = 0;
@@ -1582,6 +1596,9 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
     if (in.mipsGot)
       in.mipsGot->updateAllocSize();
 
+    //if (in.plt)
+    //  changed |= in.plt->updateAllocSize();
+
     for (Partition &part : partitions) {
       changed |= part.relaDyn->updateAllocSize();
       if (part.relrDyn)
@@ -1602,6 +1619,55 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
       }
     }
   }
+  for (;;) {
+    bool changed = target->needsThunks && tc.createThunks(outputSections);
+
+    // With Thunk Size much smaller than branch range we expect to
+    // converge quickly; if we get to 10 something has gone wrong.
+    if (changed && tc.pass >= 10) {
+      error("thunk creation not converged");
+      break;
+    }
+
+    if (config->fixCortexA53Errata843419) {
+      if (changed)
+        script->assignAddresses();
+      changed |= a64p.createFixes();
+    }
+    if (config->fixCortexA8) {
+      if (changed)
+        script->assignAddresses();
+      changed |= a32p.createFixes();
+    }
+
+    if (in.mipsGot)
+      in.mipsGot->updateAllocSize();
+
+    if (in.plt)
+      changed |= in.plt->updateAllocSize();
+
+    for (Partition &part : partitions) {
+      changed |= part.relaDyn->updateAllocSize();
+      if (part.relrDyn)
+        changed |= part.relrDyn->updateAllocSize();
+    }
+
+    const Defined *changedSym = script->assignAddresses();
+    if (!changed) {
+      // Some symbols may be dependent on section addresses. When we break the
+      // loop, the symbol values are finalized because a previous
+      // assignAddresses() finalized section addresses.
+      if (!changedSym)
+        break;
+      if (++assignPasses == 5) {
+        errorOrWarn("assignment to symbol " + toString(*changedSym) +
+                    " does not converge");
+        break;
+      }
+    }
+  }
+  config->noinhibitAssert = true;
+  script->assignAddresses();
 }
 
 static void finalizeSynthetic(SyntheticSection *sec) {
@@ -1981,10 +2047,12 @@ template <class ELFT> void Writer<ELFT>::addStartEndSymbols() {
 // __stop_<secname> symbols. They are at beginning and end of the section,
 // respectively. This is not requested by the ELF standard, but GNU ld and
 // gold provide the feature, and used by many programs.
+// If we are linking for the RL78 target, we always want to define the section start/stop
+// symbols.
 template <class ELFT>
 void Writer<ELFT>::addStartStopSymbols(OutputSection *sec) {
   StringRef s = sec->name;
-  if (!isValidCIdentifier(s))
+  if (!isValidCIdentifier(s) && config->emachine != llvm::ELF::EM_RL78)
     return;
   addOptionalRegular(saver.save("__start_" + s), sec, 0, STV_PROTECTED);
   addOptionalRegular(saver.save("__stop_" + s), sec, -1, STV_PROTECTED);
@@ -2379,6 +2447,14 @@ template <class ELFT> void Writer<ELFT>::setPhdrs(Partition &part) {
 
       if (!p->hasLMA)
         p->p_paddr = first->getLMA();
+
+      if (config->emachine == EM_RL78 && config->strideDSPMemoryArea &&
+          (p->p_vaddr != p->p_paddr) && (p->p_paddr + p->p_memsz >= 0xFD800) &&
+                 (p->p_paddr < 0xFF000)) {
+        // In case LMA != VMA and LMA and the phdr intersects with the DSP area
+        // we return an error.
+        error("unable to allocate program header in DSP area");
+      }
     }
 
     if (p->p_type == PT_GNU_RELRO) {

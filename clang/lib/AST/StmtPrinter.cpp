@@ -1296,6 +1296,12 @@ void StmtPrinter::VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr *Node){
   case UETT_OpenMPRequiredSimdAlign:
     OS << "__builtin_omp_required_simd_align";
     break;
+  case UETT_SecTop:
+    OS << "__sectop";
+    break;
+  case UETT_SecEnd:
+    OS << "__secend";
+    break;
   }
   if (Node->isArgumentType()) {
     OS << '(';

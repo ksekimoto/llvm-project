@@ -19,7 +19,6 @@
 #include "llvm/MC/MCSection.h"
 #include "llvm/MC/MCSectionELF.h"
 #include "llvm/MC/MCInst.h"
-#include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCAsmParser.h"
@@ -31,6 +30,7 @@
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCValue.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/SMLoc.h"
@@ -47,6 +47,8 @@
 
 using namespace llvm;
 #define DEBUG_TYPE "rl78-asm-parser"
+
+extern bool EnableRL78CCRLAsmSyntax;
 
 namespace {
 
@@ -202,12 +204,9 @@ public:
 
 static constexpr const char *BitPositionSymbolPrefix = ".$$$";
 
-static const MCPhysReg IntRegs[32] = {
+static const MCPhysReg IntRegs[8] = {
     RL78::R0,  RL78::R1,  RL78::R2,  RL78::R3,  RL78::R4,  RL78::R5,  RL78::R6,
-    RL78::R7,  RL78::R8,  RL78::R9,  RL78::R10, RL78::R11, RL78::R12, RL78::R13,
-    RL78::R14, RL78::R15, RL78::R16, RL78::R17, RL78::R18, RL78::R19, RL78::R20,
-    RL78::R21, RL78::R22, RL78::R23, RL78::R24, RL78::R25, RL78::R26, RL78::R27,
-    RL78::R28, RL78::R29, RL78::R30, RL78::R31};
+    RL78::R7};
 
 namespace {
 
@@ -1465,10 +1464,10 @@ bool RL78AsmParser::EmitSectionDirective(
     const RelocationAttributeDefault* RelocationAttributeDesc) {
   // Parse and handle absolute section address.
   std::string NewSectionName = SectionName.str();
-  if (RelocationAttribute.compare("AT") == 0 ||
-      RelocationAttribute.compare("DATA_AT") == 0 ||
-      RelocationAttribute.compare("BSS_AT") == 0 ||
-      RelocationAttribute.compare("BIT_AT") == 0) {
+  if (RelocationAttribute.compare_lower("AT") == 0 ||
+      RelocationAttribute.compare_lower("DATA_AT") == 0 ||
+      RelocationAttribute.compare_lower("BSS_AT") == 0 ||
+      RelocationAttribute.compare_lower("BIT_AT") == 0) {
 
     // TODO check for overlaps at compile time already?
     if (ParseSectionAddress(SectionName, NewSectionName))
@@ -1484,7 +1483,7 @@ bool RL78AsmParser::EmitSectionDirective(
   // section is only generated from the absolute address.
   AsmToken NextToken = getLexer().peekTok();
   if (NextToken.is(AsmToken::Identifier) &&
-      (NextToken.getString().compare(".ORG") == 0)) {
+      (NextToken.getString().compare_lower(".ORG") == 0)) {
     // Eat EndOfStatement.
     Lex();
     // Eat .ORG.
@@ -1497,10 +1496,10 @@ bool RL78AsmParser::EmitSectionDirective(
   SwitchToSection(NewSectionName, RelocationAttributeDesc->Type, Flags);
 
   // Apply the default section align
-  if (RelocationAttribute.compare("TEXT") == 0 ||
-      RelocationAttribute.compare("TEXT") == 0 ||
-      RelocationAttribute.compare("TEXTF") == 0 ||
-      RelocationAttribute.compare("TEXTF_UNIT64KP") == 0) {
+  if (RelocationAttribute.compare_lower("TEXT") == 0 ||
+      RelocationAttribute.compare_lower("TEXT") == 0 ||
+      RelocationAttribute.compare_lower("TEXTF") == 0 ||
+      RelocationAttribute.compare_lower("TEXTF_UNIT64KP") == 0) {
     getStreamer().EmitCodeAlignment(
         RelocationAttributeDesc->DefaultAlign);
   } else {
@@ -1519,8 +1518,8 @@ bool RL78AsmParser::LookupRelocationAttribute(
   if (RelocationAttributeMatch == RelocationAttributeMap.end())
     return TokError("unexpected relocation-attribute in directive");
 
-  if (Attribute.compare("OPT_BYTE") == 0 && SectionName.compare("") != 0 && SectionName.compare(".option_byte") != 0 ||
-      Attribute.compare("SECUR_ID") == 0 && SectionName.compare("") != 0 && SectionName.compare(".security_id") != 0)
+  if (Attribute.compare_lower("OPT_BYTE") == 0 && SectionName.compare("") != 0 && SectionName.compare(".option_byte") != 0 ||
+      Attribute.compare_lower("SECUR_ID") == 0 && SectionName.compare("") != 0 && SectionName.compare(".security_id") != 0)
 	return TokError("special section name cannot be changed");
 
   // Not exactly an appropriate place, but check for section name correctness
@@ -1561,11 +1560,11 @@ bool RL78AsmParser::ParseSectionArguments(SMLoc loc) {
 bool RL78AsmParser::parseDirectiveSeg(StringRef Name, StringRef Type) {
 
   StringRef RelocationAttribute;
-  if (Type.compare(".CSEG") == 0)
+  if (Type.compare_lower(".CSEG") == 0)
     RelocationAttribute = "TEXT";
-  else if (Type.compare(".DSEG") == 0)
+  else if (Type.compare_lower(".DSEG") == 0)
     RelocationAttribute = "DATA";
-  else if (Type.compare(".BSEG") == 0)
+  else if (Type.compare_lower(".BSEG") == 0)
     RelocationAttribute = "SBSS_BIT";
   else
     return TokError("unexpected directive kind");
@@ -1670,7 +1669,8 @@ bool RL78AsmParser::parseDSDirective() {
       return Error(ExprLoc, "out of range literal value");
     for (uint32_t i = 1; i <= AllocationSize / 8; i++)
       getStreamer().EmitIntValue(0, 8);
-    getStreamer().EmitIntValue(0, AllocationSize % 8);
+    if(AllocationSize % 8 > 0)
+        getStreamer().EmitIntValue(0, AllocationSize % 8);
   } else
     return Error(ExprLoc, "invalid absolute-expression");
   return false;
@@ -2237,69 +2237,73 @@ bool RL78AsmParser::parseDirectiveType() {
 
 bool RL78AsmParser::ParseDirective(AsmToken DirectiveID) {
 
+  if (!EnableRL78CCRLAsmSyntax)
+    return true;
+
   SMLoc Loc = getLexer().getLoc();
 
-  if (DirectiveID.getString().compare(".PUBLIC") == 0 ||
-      DirectiveID.getString().compare(".EXTERN") == 0) {
+  if (DirectiveID.getString().compare_lower(".PUBLIC") == 0 ||
+      DirectiveID.getString().compare_lower(".EXTERN") == 0) {
     // TODO: add error handling
     return parseDirectiveSymbolAttribute(MCSA_Global);
-  } else if (DirectiveID.getString().compare(".SECTION") == 0) {
+  }
+  if (DirectiveID.getString().compare_lower(".SECTION") == 0)
     return ParseSectionArguments(Loc);
-  } else if (DirectiveID.getString().compare(".ORG") == 0) {
+  if (DirectiveID.getString().compare_lower(".ORG") == 0)
     return ParseDirectiveOrg();
-  } else if (DirectiveID.getString().compare(".OFFSET") == 0) {
+  if (DirectiveID.getString().compare_lower(".OFFSET") == 0)
     return ParseDirectiveOffset();
-  } else if (DirectiveID.getString().compare(".DB") == 0) {
+  if (DirectiveID.getString().compare_lower(".DB") == 0)
     return parseDirectiveValue(".DB", 1);
-  } else if (DirectiveID.getString().compare(".DB2") == 0) {
+  if (DirectiveID.getString().compare_lower(".DB2") == 0)
     return parseDirectiveValue(".DB2", 2);
-  } else if (DirectiveID.getString().compare(".DB4") == 0) {
+  if (DirectiveID.getString().compare_lower(".DB4") == 0)
     return parseDirectiveValue(".DB4", 4);
-  } else if (DirectiveID.getString().compare(".DB8") == 0) {
+  if (DirectiveID.getString().compare_lower(".DB8") == 0)
     return parseDirectiveValue(".DB8", 8);
-  } else if (DirectiveID.getString().compare(".DS") == 0) {
+  if (DirectiveID.getString().compare_lower(".DS") == 0)
     return parseDSDirective();
-  } else if (DirectiveID.getString().compare(".ALIGN") == 0) {
+  if (DirectiveID.getString().compare_lower(".ALIGN") == 0)
     return parseDirectiveAlign();
-  }  
-  /*else if (DirectiveID.getString().compare(".DBIT") == 0) {
-	//TODO error check for current section = bit section
-	getStreamer().EmitIntValue(0, 1);
+
+  /*if (DirectiveID.getString().compare(".DBIT") == 0) {
+        //TODO error check for current section = bit section
+        getStreamer().EmitIntValue(0, 1);
     return false;
   }*/
-  else if (DirectiveID.getString().compare(".LINE") == 0) {
+  if (DirectiveID.getString().compare_lower(".LINE") == 0)
     return parseDirectiveLine();
-  } else if (DirectiveID.getString().lower().compare("._line_top") == 0 ||
-             DirectiveID.getString().lower().compare("._line_end") == 0) {
+  if (DirectiveID.getString().compare_lower("._LINE_TOP") == 0 ||
+      DirectiveID.getString().compare_lower("._LINE_END") == 0)
     return parseDirectiveLineTopEnd();
-  } else if (DirectiveID.getString().compare(".STACK") == 0) {
+  if (DirectiveID.getString().compare_lower(".STACK") == 0)
     return parseDirectiveStack();
-  } else if (DirectiveID.getString().compare(".TYPE") == 0) {
+  if (DirectiveID.getString().compare_lower(".TYPE") == 0)
     return parseDirectiveType();
-  } else if (DirectiveID.getKind() == AsmToken::Identifier) {
+
+  if (DirectiveID.getKind() == AsmToken::Identifier) {
     StringRef Tok = getLexer().getTok().getString();
-    if (Tok.compare(".MACRO") == 0)
+    if (Tok.compare_lower(".MACRO") == 0)
       return parseDirectiveMacro(DirectiveID.getString());
-	if (Tok.compare(".SET") == 0)
+	if (Tok.compare_lower(".SET") == 0)
       return parseDirectiveSet(DirectiveID.getString());
-	if (Tok.compare(".EQU") == 0)
+	if (Tok.compare_lower(".EQU") == 0)
       return parseDirectiveEqu(DirectiveID.getString());
 
-    if (Tok.compare(".CSEG") == 0 || Tok.compare(".BSEG") == 0 ||
-        Tok.compare(".DSEG") == 0) {
+    if (Tok.compare_lower(".CSEG") == 0 || Tok.compare_lower(".BSEG") == 0 ||
+        Tok.compare_lower(".DSEG") == 0) {
       Lex();
       return parseDirectiveSeg(DirectiveID.getString(), Tok);
     }
 
     // section name is optional
-    if (DirectiveID.getString().compare(".CSEG") == 0 ||
-        DirectiveID.getString().compare(".DSEG") == 0 ||
-        DirectiveID.getString().compare(".BSEG") == 0)
+    if (DirectiveID.getString().compare_lower(".CSEG") == 0 ||
+        DirectiveID.getString().compare_lower(".DSEG") == 0 ||
+        DirectiveID.getString().compare_lower(".BSEG") == 0)
       return parseDirectiveSeg("", DirectiveID.getString());
 
-    if (Tok.compare(".VECTOR") == 0)
+    if (Tok.compare_lower(".VECTOR") == 0)
       return parseDirectiveVector(DirectiveID.getString());
-
   }
   return true;
 }

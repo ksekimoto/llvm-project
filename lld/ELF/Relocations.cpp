@@ -1339,6 +1339,18 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
     return;
   }
 
+  // In case of RL78 we need a PLT for every function above the 64KB limit.
+  // We add here entries for all of them and remove the ones below 64KB limit later.
+  //dbgs() << "Checking:" << sym.getName() << "\n";
+  if ((!config->RL78FarCode) && (config->emachine == EM_RL78) &&
+      (sym.hasNoType() || sym.isFunc() || sym.isSection()) &&
+      (sym.getOutputSection() &&
+       sym.getOutputSection()->flags & SHF_EXECINSTR) &&
+      !sym.isInPlt() && (type == R_RL78_DIR16U)) {
+    // dbgs() << sym.getName() << "\n";
+    in.plt->addEntry(sym);
+  }
+
   // Non-preemptible ifuncs require special handling. First, handle the usual
   // case where the symbol isn't one of these.
   if (!sym.isGnuIFunc() || sym.isPreemptible) {

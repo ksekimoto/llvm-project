@@ -943,7 +943,7 @@ void InputSectionBase::relocateAlloc(uint8_t *buf, uint8_t *bufEnd) {
     uint64_t targetVA = SignExtend64(
         getRelocTargetVA(file, type, rel.addend, addrLoc, *rel.sym, expr),
         bits);
-
+    
     switch (expr) {
     case R_RELAX_GOT_PC:
     case R_RELAX_GOT_PC_NOPIC:
@@ -997,7 +997,36 @@ void InputSectionBase::relocateAlloc(uint8_t *buf, uint8_t *bufEnd) {
       target->relocateOne(bufLoc, type, targetVA);
       break;
     default:
-      target->relocateOne(bufLoc, type, targetVA);
+      if (config->emachine == EM_RL78) {
+        if (rel.sym->isInPlt()) {
+          target->relocateOne(bufLoc, type, rel.sym->getPltVA());
+        } else {
+          switch (type) {
+          case R_RL78_ABS8S_PCREL:
+          case R_RL78_ABS16S_PCREL:
+            target->relocateOne(bufLoc, type, addrLoc);
+            break;
+          case R_RL78_OPsctsize: {
+            auto symbol = lld::toString(*rel.sym);
+            if (Defined *d = dyn_cast<Defined>(rel.sym)) {
+              if (InputSection *isec = cast_or_null<InputSection>(d->section)) {
+                target->relocateOne(bufLoc, type, isec->getOutputSection()->size);
+              } else {
+                errorOrWarn(getErrorLocation(bufLoc) + " symbol " + symbol +
+                            " is not a section symbol!");
+              }
+            } else {
+              errorOrWarn(getErrorLocation(bufLoc) + " symbol " + symbol +
+                          " is not defined!");
+            }
+          }
+          break;
+          default:
+            target->relocateOne(bufLoc, type, targetVA);
+          }
+        }
+      } else
+        target->relocateOne(bufLoc, type, targetVA);
       break;
     }
   }

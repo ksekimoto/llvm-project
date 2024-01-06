@@ -163,21 +163,11 @@ struct OPT {
 
 static std::map<unsigned char, unsigned int> saddrLookup = {
     {0xF8, RL78::R0},  {0xF9, RL78::R1},  {0xFA, RL78::R2},  {0xFB, RL78::R3},
-    {0xFC, RL78::R4},  {0xFD, RL78::R5},  {0xFE, RL78::R6},  {0xFF, RL78::R7},
-    {0xF0, RL78::R8},  {0xF1, RL78::R9},  {0xF2, RL78::R10}, {0xF3, RL78::R11},
-    {0xF4, RL78::R12}, {0xF5, RL78::R13}, {0xF6, RL78::R14}, {0xF7, RL78::R15},
-    {0xE8, RL78::R16}, {0xE9, RL78::R17}, {0xEA, RL78::R18}, {0xEB, RL78::R19},
-    {0xEC, RL78::R20}, {0xED, RL78::R21}, {0xEE, RL78::R22}, {0xEF, RL78::R23},
-    {0xE0, RL78::R24}, {0xE1, RL78::R25}, {0xE2, RL78::R26}, {0xE3, RL78::R27},
-    {0xE4, RL78::R28}, {0xE5, RL78::R29}, {0xE6, RL78::R30}, {0xE7, RL78::R31}};
+    {0xFC, RL78::R4},  {0xFD, RL78::R5},  {0xFE, RL78::R6},  {0xFF, RL78::R7}};
 
 static std::map<unsigned char, unsigned int> saddrpLookup = {
     {0xF8, RL78::RP0},  {0xFA, RL78::RP2},  {0xFC, RL78::RP4},
-    {0xFE, RL78::RP6},  {0xF0, RL78::RP8},  {0xF2, RL78::RP10},
-    {0xF4, RL78::RP12}, {0xF6, RL78::RP14}, {0xE8, RL78::RP16},
-    {0xEA, RL78::RP18}, {0xEC, RL78::RP20}, {0xEE, RL78::RP22},
-    {0xE0, RL78::RP24}, {0xE2, RL78::RP26}, {0xE4, RL78::RP28},
-    {0xE6, RL78::RP30}};
+    {0xFE, RL78::RP6}};
 
 struct InstructionInfo {
   int OpCode;
@@ -1347,17 +1337,17 @@ static std::multimap<unsigned int, InstructionInfo> instructions = {
     // MOV A,PSW
     {0x8EU, {RL78::MOV_A_PSW, {0xFAU}, {RL78::R1}}},
     // MOV A,sfr
-    {0x8EU, {RL78::MOV_A_sfr, {SBP::sfr}, {RL78::R1,OPT::sfr}}},
+    {0x8EU, {RL78::LOAD8_r_sfr, {SBP::sfr}, {RL78::R1,OPT::sfr}}},
     // MOV PSW,A
     {0x9EU, {RL78::MOV_PSW_A, {0xFAU}, {RL78::R1}}},
     // MOV sfr,A
-    {0x9EU, {RL78::MOV_sfr_A, {SBP::sfr}, {OPT::sfr,RL78::R1}}},
+    {0x9EU, {RL78::STORE8_sfr_r, {SBP::sfr}, {OPT::sfr,RL78::R1}}},
     // MOV CS,#byte
     {0xCEU, {RL78::MOV_cs_imm, {0xFCU, SBP::data}, {RL78::CS, OPT::byte}}},
     // MOV PSW,#byte
     {0xCEU, {RL78::MOV_psw_imm, {0xFAU, SBP::data}, {RL78::PSW, OPT::byte}}},
     // MOV sfr,#byte
-    {0xCEU, {RL78::MOV_sfr_imm, {SBP::sfr, SBP::data}, {OPT::sfr, OPT::byte}}},
+    {0xCEU, {RL78::STORE8_sfr_imm, {SBP::sfr, SBP::data}, {OPT::sfr, OPT::byte}}},
     // MOV1 CY,[HL].0
     {0x71U, {RL78::MOV1_cy_memr, {0x84U}, {OPT::memHL, OPT::imm0}}},
     // MOV1 CY,[HL].1
@@ -1519,37 +1509,37 @@ static std::multimap<unsigned int, InstructionInfo> instructions = {
     // MOV1 ES:[HL].7,CY
     {0x11U, {RL78::MOV1_esmemr_cy, {0x71U, 0xF1U}, {OPT::ES_memHL,OPT::imm7, RL78::CY}}},
     // MOV1 CY,sfr.0
-    {0x71U, {RL78::MOV1_cy_sfr, {0x0CU, SBP::sfr}, {RL78::CY, OPT::sfr,OPT::imm0}}},
+    {0x71U, {RL78::MOV1_cy_sfr, {0x0CU, SBP::sfr}, {OPT::sfr,OPT::imm0}}},
     // MOV1 CY,sfr.1
-    {0x71U, {RL78::MOV1_cy_sfr, {0x1CU, SBP::sfr}, {RL78::CY, OPT::sfr,OPT::imm1}}},
+    {0x71U, {RL78::MOV1_cy_sfr, {0x1CU, SBP::sfr}, {OPT::sfr,OPT::imm1}}},
     // MOV1 CY,sfr.2
-    {0x71U, {RL78::MOV1_cy_sfr, {0x2CU, SBP::sfr}, {RL78::CY, OPT::sfr,OPT::imm2}}},
+    {0x71U, {RL78::MOV1_cy_sfr, {0x2CU, SBP::sfr}, {OPT::sfr,OPT::imm2}}},
     // MOV1 CY,sfr.3
-    {0x71U, {RL78::MOV1_cy_sfr, {0x3CU, SBP::sfr}, {RL78::CY, OPT::sfr,OPT::imm3}}},
+    {0x71U, {RL78::MOV1_cy_sfr, {0x3CU, SBP::sfr}, {OPT::sfr,OPT::imm3}}},
     // MOV1 CY,sfr.4
-    {0x71U, {RL78::MOV1_cy_sfr, {0x4CU, SBP::sfr}, {RL78::CY, OPT::sfr,OPT::imm4}}},
+    {0x71U, {RL78::MOV1_cy_sfr, {0x4CU, SBP::sfr}, {OPT::sfr,OPT::imm4}}},
     // MOV1 CY,sfr.5
-    {0x71U, {RL78::MOV1_cy_sfr, {0x5CU, SBP::sfr}, {RL78::CY, OPT::sfr,OPT::imm5}}},
+    {0x71U, {RL78::MOV1_cy_sfr, {0x5CU, SBP::sfr}, {OPT::sfr,OPT::imm5}}},
     // MOV1 CY,sfr.6
-    {0x71U, {RL78::MOV1_cy_sfr, {0x6CU, SBP::sfr}, {RL78::CY, OPT::sfr,OPT::imm6}}},
+    {0x71U, {RL78::MOV1_cy_sfr, {0x6CU, SBP::sfr}, {OPT::sfr,OPT::imm6}}},
     // MOV1 CY,sfr.7
-    {0x71U, {RL78::MOV1_cy_sfr, {0x7CU, SBP::sfr}, {RL78::CY, OPT::sfr,OPT::imm7}}},
+    {0x71U, {RL78::MOV1_cy_sfr, {0x7CU, SBP::sfr}, {OPT::sfr,OPT::imm7}}},
     // MOV1 sfr.0,CY
-    {0x71U, {RL78::MOV1_sfr_cy, {0x9U, SBP::sfr}, {OPT::sfr,OPT::imm0, RL78::CY}}},
+    {0x71U, {RL78::MOV1_sfr_cy, {0x9U, SBP::sfr}, {OPT::sfr,OPT::imm0}}},
     // MOV1 sfr.1,CY
-    {0x71U, {RL78::MOV1_sfr_cy, {0x19U, SBP::sfr}, {OPT::sfr,OPT::imm1, RL78::CY}}},
+    {0x71U, {RL78::MOV1_sfr_cy, {0x19U, SBP::sfr}, {OPT::sfr,OPT::imm1}}},
     // MOV1 sfr.2,CY
-    {0x71U, {RL78::MOV1_sfr_cy, {0x29U, SBP::sfr}, {OPT::sfr,OPT::imm2, RL78::CY}}},
+    {0x71U, {RL78::MOV1_sfr_cy, {0x29U, SBP::sfr}, {OPT::sfr,OPT::imm2}}},
     // MOV1 sfr.3,CY
-    {0x71U, {RL78::MOV1_sfr_cy, {0x39U, SBP::sfr}, {OPT::sfr,OPT::imm3, RL78::CY}}},
+    {0x71U, {RL78::MOV1_sfr_cy, {0x39U, SBP::sfr}, {OPT::sfr,OPT::imm3}}},
     // MOV1 sfr.4,CY
-    {0x71U, {RL78::MOV1_sfr_cy, {0x49U, SBP::sfr}, {OPT::sfr,OPT::imm4, RL78::CY}}},
+    {0x71U, {RL78::MOV1_sfr_cy, {0x49U, SBP::sfr}, {OPT::sfr,OPT::imm4}}},
     // MOV1 sfr.5,CY
-    {0x71U, {RL78::MOV1_sfr_cy, {0x59U, SBP::sfr}, {OPT::sfr,OPT::imm5, RL78::CY}}},
+    {0x71U, {RL78::MOV1_sfr_cy, {0x59U, SBP::sfr}, {OPT::sfr,OPT::imm5}}},
     // MOV1 sfr.6,CY
-    {0x71U, {RL78::MOV1_sfr_cy, {0x69U, SBP::sfr}, {OPT::sfr,OPT::imm6, RL78::CY}}},
+    {0x71U, {RL78::MOV1_sfr_cy, {0x69U, SBP::sfr}, {OPT::sfr,OPT::imm6}}},
     // MOV1 sfr.7,CY
-    {0x71U, {RL78::MOV1_sfr_cy, {0x79U, SBP::sfr}, {OPT::sfr,OPT::imm7, RL78::CY}}},
+    {0x71U, {RL78::MOV1_sfr_cy, {0x79U, SBP::sfr}, {OPT::sfr,OPT::imm7}}},
     // MOVS [HL+byte],X
     {0x61U, {RL78::MOVS_memri_r, {0xCEU, SBP::adr}, {OPT::memHL_byte, RL78::R0}}},
     // MOVS ES:[HL+byte],X
@@ -1679,11 +1669,11 @@ static std::multimap<unsigned int, InstructionInfo> instructions = {
     // MOVW AX,word[C]
     {0x69U, {RL78::LOAD16_rp_rbci, {SBP::adrl, SBP::adrh}, {RL78::RP0,OPT::word_memC}}},
     // MOVW AX,sfrp
-    {0xAEU, {RL78::MOVW_AX_sfrp, {SBP::sfr}, {RL78::RP0,OPT::sfrp}}},
+    {0xAEU, {RL78::LOAD16_rp_sfrp, {SBP::sfr}, {RL78::RP0,OPT::sfrp}}},
     // MOVW sfrp,AX
-    {0xBEU, {RL78::MOVW_sfrp_AX, {SBP::sfr}, {OPT::sfrp,RL78::RP0}}},
+    {0xBEU, {RL78::STORE16_sfrp_rp, {SBP::sfr}, {OPT::sfrp,RL78::RP0}}},
     // MOVW sfrp,#word
-    {0xCBU, {RL78::MOVW_sfrp_imm, {SBP::sfr, SBP::datal, SBP::datah}, {OPT::sfrp,OPT::word}}},
+    {0xCBU, {RL78::STORE16_sfrp_imm, {SBP::sfr, SBP::datal, SBP::datah}, {OPT::sfrp,OPT::word}}},
     // MULU X*/ 
     {0xD6U, {RL78::MULU_r, {}, {RL78::R0}}},
     // NOP nan*/ 

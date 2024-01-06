@@ -168,6 +168,7 @@ file(WRITE ${SIMPLE_SOURCE} "#include <stdlib.h>\n#include <stdio.h>\nint main()
 # Detect whether the current target platform is 32-bit or 64-bit, and setup
 # the correct commandline flags needed to attempt to target 32-bit and 64-bit.
 # AVR MSP430 and RL78 are omitted since they have 16-bit pointers.
+# 2024/01/06 KS Updated for RL78
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 4 AND
     NOT CMAKE_SIZEOF_VOID_P EQUAL 8 AND
     NOT ${arch} MATCHES "avr|msp430|rl78")
@@ -612,6 +613,7 @@ else()
   set(COMPILER_RT_ASAN_HAS_STATIC_RUNTIME FALSE)
 endif()
 
+# 2024/01/06 KS Updated for RL78
 # TODO: Add builtins support.
 if (CRT_SUPPORTED_ARCH AND( OS_NAME MATCHES "Linux" OR OS_NAME MATCHES "Generic"))
   set(COMPILER_RT_HAS_CRT TRUE)

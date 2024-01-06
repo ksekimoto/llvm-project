@@ -59,6 +59,13 @@ FunctionPass *llvm::createRL78ConstPropAndOpSwap() {
   return new RL78ConstPropAndOpSwap();
 }
 
+static bool IsMACReg(Register reg, const MachineRegisterInfo *MRI) {
+  return !reg.isVirtual() && (reg == RL78::MACRH && reg == RL78::MACRL) ||
+         reg.isVirtual() &&
+             (MRI->getRegClass(reg) == &RL78::RL78RegMACRHRegClass ||
+              MRI->getRegClass(reg) == &RL78::RL78RegMACRLRegClass);
+}
+
 bool RL78ConstPropAndOpSwap::runOnMachineFunction(MachineFunction &MF) {
 
   bool changed = false;
@@ -195,7 +202,8 @@ bool RL78ConstPropAndOpSwap::runOnMachineFunction(MachineFunction &MF) {
             getCoresspondingCpyOrConst(MI.getOperand(1), ACPM);
 
         if (crspCpyAndInstr.second == RL78::MOVW_rp_imm && MI.isCopy() &&
-            TRI->getRegSizeInBits(MI.getOperand(0).getReg(), *MRI) == 16) {
+            TRI->getRegSizeInBits(MI.getOperand(0).getReg(), *MRI) == 16 &&
+            !IsMACReg(MI.getOperand(0).getReg(), MRI)) {
           const RL78InstrInfo &TII = *static_cast<const RL78InstrInfo *>(
               MF.getSubtarget().getInstrInfo());
 

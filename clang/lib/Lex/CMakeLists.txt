@@ -7,6 +7,7 @@ add_clang_library(clangLex
   HeaderMap.cpp
   HeaderSearch.cpp
   Lexer.cpp
+  LiteralConverter.cpp
   LiteralSupport.cpp
   MacroArgs.cpp
   MacroInfo.cpp

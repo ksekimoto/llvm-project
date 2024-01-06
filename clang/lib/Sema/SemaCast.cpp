@@ -2916,9 +2916,9 @@ ExprResult Sema::BuildCStyleCastExpr(SourceLocation LPLoc,
 
   // -Wcast-qual
   DiagnoseCastQual(Op.Self, Op.SrcExpr, Op.DestType);
-
+  Expr *srcExpr = Op.SrcExpr.get();
   return Op.complete(CStyleCastExpr::Create(Context, Op.ResultType,
-                              Op.ValueKind, Op.Kind, Op.SrcExpr.get(),
+                              Op.ValueKind, Op.Kind, srcExpr,
                               &Op.BasePath, CastTypeInfo, LPLoc, RPLoc));
 }
 

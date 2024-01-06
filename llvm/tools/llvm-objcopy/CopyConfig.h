@@ -33,6 +33,8 @@ enum class FileFormat {
   ELF,
   Binary,
   IHex,
+  SRec,
+  SymbolSRec,
 };
 
 // This type keeps track of the machine info for various architectures. This

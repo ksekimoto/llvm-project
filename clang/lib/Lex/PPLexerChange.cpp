@@ -76,8 +76,15 @@ bool Preprocessor::EnterSourceFile(FileID FID, const DirectoryLookup *CurDir,
 
   // Get the MemoryBuffer for this FID, if it fails, we fail.
   bool Invalid = false;
-  const llvm::MemoryBuffer *InputFile =
-    getSourceManager().getBuffer(FID, Loc, &Invalid);
+  const llvm::MemoryBuffer *InputFile;
+
+  if (FID == SourceMgr.getMainFileID()) {
+    llvm::CharSetConverter *converter =
+        LiteralConv.getConverter(ConversionAction::ToInternalCharset);
+    InputFile = getSourceManager().getBuffer(FID, Loc, &Invalid, converter);
+  } else {
+    InputFile = getSourceManager().getBuffer(FID, Loc, &Invalid);
+  }
   if (Invalid) {
     SourceLocation FileStart = SourceMgr.getLocForStartOfFile(FID);
     Diag(Loc, diag::err_pp_error_opening_file)

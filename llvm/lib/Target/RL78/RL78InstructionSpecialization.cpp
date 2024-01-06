@@ -251,12 +251,15 @@ std::multimap<unsigned int, Specialization> enumImmOp_spec = {
 bool isAMemDEHLOp(MachineInstr &MI, Specialization &newOp);
 bool isLimitedOp(MachineInstr &MI, Specialization &newOp);
 bool isMatchingEnumImmOp(MachineInstr &MI, Specialization &newOp);
+bool replaceMACRMoves(MachineInstr &MI, MachineBasicBlock &MBB, const TargetInstrInfo *TII);
+
 
 bool RL78InstructionSpecializationPass::processInstruction(
     MachineInstr &MI, MachineBasicBlock &MBB, const TargetInstrInfo *TII) {
   return iterateMatches(MI, MBB, TII, A_memDEHL_spec, isAMemDEHLOp) ||
          iterateMatches(MI, MBB, TII, limitedRegOp_spec, isLimitedOp) ||
-         iterateMatches(MI, MBB, TII, enumImmOp_spec, isMatchingEnumImmOp);
+         iterateMatches(MI, MBB, TII, enumImmOp_spec, isMatchingEnumImmOp) ||
+         replaceMACRMoves(MI, MBB, TII);
 }
 
 bool RL78InstructionSpecializationPass::iterateMatches(
@@ -330,4 +333,29 @@ bool RL78InstructionSpecializationPass::replaceInstruction(
 
   LLVM_DEBUG(dbgs() << "replaced with: " << newOp.DebugName << "\n");
   return true;
+}
+
+bool replaceMACRMoves(MachineInstr &MI, MachineBasicBlock &MBB, const TargetInstrInfo *TII) {
+#define MACRHigh 0xFFF2
+#define MACRLow 0xFFF0
+  if (MI.getOpcode() == RL78::MOVW_rp_AX &&
+      (MI.getOperand(0).getReg() == RL78::MACRH ||
+       MI.getOperand(0).getReg() == RL78::MACRL)) {
+    unsigned DestAddr =
+        MI.getOperand(0).getReg() == RL78::MACRH ? MACRHigh : MACRLow;
+    BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(RL78::STORE16_abs16_rp))
+        .addImm(DestAddr)
+        .add(MI.getOperand(1));
+    return true;
+  } else if (MI.getOpcode() == RL78::MOVW_AX_rp &&
+             (MI.getOperand(1).getReg() == RL78::MACRH ||
+              MI.getOperand(1).getReg() == RL78::MACRL)) {
+    unsigned SrcAddr =
+        MI.getOperand(1).getReg() == RL78::MACRH ? MACRHigh : MACRLow;
+    BuildMI(MBB, MI, MI.getDebugLoc(), TII->get(RL78::LOAD16_rp_abs16))
+        .add(MI.getOperand(0))
+        .addImm(SrcAddr);
+    return true;
+  }
+  return false;
 }

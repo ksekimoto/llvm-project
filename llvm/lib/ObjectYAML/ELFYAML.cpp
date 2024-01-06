@@ -428,6 +428,23 @@ void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
     break;
   case ELF::EM_X86_64:
     break;
+// 2024/01/6 KS Updated for RL78
+  case ELF::EM_RL78:
+    BCase(EF_RL78_FU_EXIST);
+    BCase(EF_RL78_EI_EXIST);
+    BCaseMask(EF_RL78_MAA_0, EF_RL78_MAA_1);
+    BCaseMask(EF_RL78_MAA_1, EF_RL78_MAA_1);
+    BCaseMask(EF_RL78_CPU_8BIT, EF_RL78_CPU_16BIT);
+    BCaseMask(EF_RL78_CPU_16BIT, EF_RL78_CPU_16BIT);
+    BCaseMask(EF_RL78_DOUBLE_4, EF_RL78_DOUBLE_8);
+    BCaseMask(EF_RL78_DOUBLE_8, EF_RL78_DOUBLE_8);
+    BCaseMask(EF_RL78_TEXT_NEAR, EF_RL78_TEXT_FAR);
+    BCaseMask(EF_RL78_TEXT_FAR, EF_RL78_TEXT_FAR);
+    BCaseMask(EF_RL78_DATA_NEAR, EF_RL78_DATA_FAR);
+    BCaseMask(EF_RL78_DATA_FAR, EF_RL78_DATA_FAR);
+    BCaseMask(EF_RL78_RODATA_NEAR, EF_RL78_RODATA_FAR);
+    BCaseMask(EF_RL78_RODATA_FAR, EF_RL78_RODATA_FAR);
+    break;
   default:
     llvm_unreachable("Unsupported architecture");
   }

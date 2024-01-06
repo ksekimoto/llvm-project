@@ -3794,6 +3794,7 @@ public:
   llvm::Value *EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
                                           const CallExpr *E);
   llvm::Value *EmitHexagonBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
+  llvm::Value *EmitRL78BuiltinExpr(unsigned BuiltinID, const CallExpr *E);
 
 private:
   enum class MSVCIntrin;

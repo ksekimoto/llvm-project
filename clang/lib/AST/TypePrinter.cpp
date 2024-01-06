@@ -918,6 +918,8 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
     OS << " __attribute__((no_caller_saved_registers))";
   if (Info.getNoCfCheck())
     OS << " __attribute__((nocf_check))";
+  if (Info.getFar())
+    OS << " __far";
 }
 
 void TypePrinter::printFunctionNoProtoBefore(const FunctionNoProtoType *T,
@@ -1806,6 +1808,10 @@ std::string Qualifiers::getAddrSpaceAsString(LangAS AS) {
     return "__uptr __ptr32";
   case LangAS::ptr64:
     return "__ptr64";
+  case LangAS::__near:
+    return "__near";
+  case LangAS::__far:
+    return "__far";
   default:
     return std::to_string(toTargetAddressSpace(AS));
   }

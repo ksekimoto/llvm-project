@@ -278,6 +278,7 @@ def err_opt_not_valid_on_target : Error<
 
 // Source manager
 def err_cannot_open_file : Error<"cannot open file '%0': %1">, DefaultFatal;
+def err_file_conversion_failed : Error<"failed to convert file '%0': %1">, DefaultFatal;
 def err_file_modified : Error<
   "file '%0' modified since it was first processed">, DefaultFatal;
 def err_file_too_large : Error<

@@ -71,7 +71,7 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
   case x86:            return "i386";
   case x86_64:         return "x86_64";
   case xcore:          return "xcore";
-  case rl78: 		   return "rl78";
+  case rl78:           return "rl78";
   }
 
   llvm_unreachable("Invalid ArchType!");

@@ -348,6 +348,15 @@ KEYWORD(using                       , KEYCXX)
 KEYWORD(virtual                     , KEYCXX)
 KEYWORD(wchar_t                     , WCHARSUPPORT)
 
+// Renesas RL78 address space identifiers.
+KEYWORD(__near                      , KEYRL78)
+KEYWORD(__far                       , KEYRL78)
+// Renesas CC Extensions.
+KEYWORD(__saddr                     , KEYRENESASCC)
+KEYWORD(__callt                     , KEYRENESASCC)
+KEYWORD(__sectop                    , KEYRENESASCC)
+KEYWORD(__secend                    , KEYRENESASCC)
+
 // C++ 2.5p2: Alternative Representations.
 CXX_KEYWORD_OPERATOR(and     , ampamp)
 CXX_KEYWORD_OPERATOR(and_eq  , ampequal)

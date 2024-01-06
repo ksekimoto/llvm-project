@@ -254,7 +254,6 @@ macro(load_llvm_config)
     endif()
 
     set(COMPILER_RT_HAS_LLVMTESTINGSUPPORT FALSE)
-#     set(COMPILER_RT_INCLUDE_TESTS ON)
     execute_process(
       COMMAND ${LLVM_CONFIG_PATH} "--ldflags" "--libs" "testingsupport"
       RESULT_VARIABLE HAD_ERROR
