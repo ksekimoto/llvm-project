@@ -1610,6 +1610,12 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
 
   // At O0 we want to fully disable inlining outside of cases marked with
   // 'alwaysinline' that are required for correctness.
+// 2024/01/07 KS Updated for RL78
+  //TODO: Seb we can use AddRL78TargetArgs to change this
+  Opts.setInlining((Opts.OptimizationLevel < 3)
+                       ? CodeGenOptions::OnlyAlwaysInlining
+                       : CodeGenOptions::NormalInlining);
+                       
   if (Opts.OptimizationLevel == 0) {
     Opts.setInlining(CodeGenOptions::OnlyAlwaysInlining);
   } else if (const Arg *A = Args.getLastArg(options::OPT_finline_functions,
@@ -3761,8 +3767,27 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   }
   else if (Args.hasArg(OPT_fwrapv))
     Opts.setSignedOverflowBehavior(LangOptions::SOB_Defined);
-
+// 2024/01/07 KS Updated for RL78
+  Opts.MSVCCompat = Args.hasArg(OPT_fms_compatibility);
+  Opts.MicrosoftExt = Opts.MSVCCompat || Args.hasArg(OPT_fms_extensions);
+  Opts.AsmBlocks = Args.hasArg(OPT_fasm_blocks) || Opts.MicrosoftExt;
   Opts.MSCompatibilityVersion = 0;
+// 2024/01/07 KS Updated for RL78
+  Opts.UnsignedBitfields = Args.hasArg(OPT_funsigned_bitfields);
+  
+  if(T.isRL78()) {
+    Opts.RenesasRL78 = 1;
+    Opts.RenesasExt = Args.hasArg(OPT_frenesas_extensions);
+    Opts.RenesasVaArgPromotion = Args.hasArg(OPT_frenesas_vaarg);
+    Opts.RenesasRL78CodeModel = Args.hasArg(OPT_mfar_code) ? 1 : 0;
+    Opts.RenesasRL78DataModel = Args.hasArg(OPT_mfar_data) ? 1 : 0;
+    Opts.setRenesasRL78RomModel(
+        Args.hasArg(OPT_mfar_rom) ? LangOptions::RL78RomModelKind::Far
+                                  : Args.hasArg(OPT_mcommon_rom)
+                                        ? LangOptions::RL78RomModelKind::Common
+                                        : LangOptions::RL78RomModelKind::Near);
+  }
+
   if (const Arg *A = Args.getLastArg(OPT_fms_compatibility_version)) {
     VersionTuple VT;
     if (VT.tryParse(A->getValue()))

@@ -1423,14 +1423,14 @@ template <class ELFT, class RelTy> void RelocationScanner::scanOne(RelTy *&i) {
 
   // In case of RL78 we need a PLT for every function above the 64KB limit.
   // We add here entries for all of them and remove the ones below 64KB limit later.
-  //dbgs() << "Checking:" << sym.getName() << "\n";
+  // dbgs() << "Checking:" << sym.getName() << "\n";
   if ((!config->RL78FarCode) && (config->emachine == EM_RL78) &&
       (sym.hasNoType() || sym.isFunc() || sym.isSection()) &&
       (sym.getOutputSection() &&
        sym.getOutputSection()->flags & SHF_EXECINSTR) &&
       !sym.isInPlt() && (type == R_RL78_DIR16U)) {
     // dbgs() << sym.getName() << "\n";
-    // in.plt->addEntry(sym);
+    in.plt->addEntry(sym);
   }
   if (needsGot(expr)) {
     if (config->emachine == EM_MIPS) {

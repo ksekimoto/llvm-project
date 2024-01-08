@@ -35,7 +35,8 @@ public:
 
   // Pass Pipeline Configuration
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
-  TargetTransformInfo getTargetTransformInfo(const Function &F) override;
+// 2024/01/07 KS Updated for RL78
+  TargetTransformInfo getTargetTransformInfo(const Function &F);
   TargetLoweringObjectFile *getObjFileLowering() const override {
     return TLOF.get();
   }

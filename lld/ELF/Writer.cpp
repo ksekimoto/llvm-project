@@ -843,29 +843,6 @@ static bool isRelroSection(const OutputSection *sec) {
 // * It is easy to check if a give branch was taken.
 // * It is easy two see how similar two ranks are (see getRankProximity).
 enum RankFlags {
-#if 0
-  RF_NOT_ADDR_SET = 1 << 27,
-  RF_NOT_ALLOC = 1 << 26,
-  RF_PARTITION = 1 << 18, // Partition number (8 bits)
-  RF_NOT_PART_EHDR = 1 << 17,
-  RF_NOT_PART_PHDR = 1 << 16,
-  RF_NOT_INTERP = 1 << 15,
-  RF_NOT_NOTE = 1 << 14,
-  RF_WRITE = 1 << 13,
-  RF_EXEC_WRITE = 1 << 12,
-  RF_EXEC = 1 << 11,
-  RF_RODATA = 1 << 10,
-  RF_NOT_RELRO = 1 << 9,
-  RF_NOT_TLS = 1 << 8,
-  RF_BSS = 1 << 7,
-  RF_PPC_NOT_TOCBSS = 1 << 6,
-  RF_PPC_TOCL = 1 << 5,
-  RF_PPC_TOC = 1 << 4,
-  RF_PPC_GOT = 1 << 3,
-  RF_PPC_BRANCH_LT = 1 << 2,
-  RF_MIPS_GPREL = 1 << 1,
-  RF_MIPS_NOT_GOT = 1 << 0
-#endif
   RF_NOT_ADDR_SET = 1 << 29,
   RF_NOT_ALLOC = 1 << 28,
   RF_PARTITION = 1 << 20, // Partition number (8 bits)

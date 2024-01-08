@@ -30,6 +30,8 @@
 #include <utility>
 
 using namespace llvm;
+//2024/01/07 KS Updated for RL78
+extern bool EnableRL78CCRLAsmSyntax;
 
 AsmLexer::AsmLexer(const MCAsmInfo &MAI) : MAI(MAI) {
   AllowAtInIdentifier = !StringRef(MAI.getCommentString()).startswith("@");
@@ -97,6 +99,12 @@ AsmToken AsmLexer::LexFloatLiteral() {
                   StringRef(TokStart, CurPtr - TokStart));
 }
 
+/// LexIdentifier: [a-zA-Z_.][a-zA-Z0-9_$.@?]*
+static bool IsIdentifierChar(char c, bool AllowAt) {
+  return isAlnum(c) || c == '_' || c == '$' || c == '.' ||
+         (c == '@' && AllowAt) || c == '?';
+}
+
 /// LexHexFloatLiteral matches essentially (.[0-9a-fA-F]*)?[pP][+-]?[0-9a-fA-F]+
 /// while making sure there are enough actual digits around for the constant to
 /// be valid.
@@ -113,6 +121,30 @@ AsmToken AsmLexer::LexHexFloatLiteral(bool NoIntDigits) {
     ++CurPtr;
 
     const char *FracStart = CurPtr;
+// 2024/01/07 KS Updated for RL78
+    // See if it's a possible RL78 bit positional, with explicit
+    // bit position.
+    if (MAI.hasRL78Expressions() && !NoIntDigits && CurPtr[0] >= '0' &&
+        CurPtr[0] <= '7' &&
+        ((CurPtr + 1) == CurBuf.end() || CurPtr[1] == ' ' || CurPtr[1] == ',' ||
+         CurPtr[1] == ';' || CurPtr[1] == '\n' || CurPtr[1] == '\r' ||
+         CurPtr[1] == '\t')) {
+      CurPtr++;
+      return AsmToken(AsmToken::BitPosition,
+                      StringRef(TokStart, CurPtr - TokStart));
+    }
+
+    // See if we have a symbolic bit position.
+    // We accept symbolic bit positions only if -frenesas-extensions is active.
+    if (EnableRL78CCRLAsmSyntax && !NoIntDigits &&
+        IsIdentifierChar(*CurPtr, AllowAtInIdentifier) && !isDigit(*CurPtr)) {
+      // Lex the symbol.
+      while (IsIdentifierChar(CurPtr[0], false))
+        CurPtr++;
+      return AsmToken(AsmToken::BitPosition,
+                      StringRef(TokStart, CurPtr - TokStart));
+    }
+
     while (isHexDigit(*CurPtr))
       ++CurPtr;
 
@@ -141,48 +173,11 @@ AsmToken AsmLexer::LexHexFloatLiteral(bool NoIntDigits) {
     return ReturnError(TokStart, "invalid hexadecimal floating-point constant: "
                                  "expected at least one exponent digit");
 
+
   return AsmToken(AsmToken::Real, StringRef(TokStart, CurPtr - TokStart));
 }
 
-/// LexIdentifier: [a-zA-Z_$.@?][a-zA-Z0-9_$.@#?]*
-static bool isIdentifierChar(char C, bool AllowAt, bool AllowHash) {
-  return isAlnum(C) || C == '_' || C == '$' || C == '.' || C == '?' ||
-         (AllowAt && C == '@') || (AllowHash && C == '#');
-}
 
-// 0x[0-9a-fA-F]{1,5}[.]([0-7]|[a-zA-Z_.][a-zA-Z0-9_$.@?]*)
-// Match <address>.(bitpos | identifier), where address must be between 0x0 and
-// 0xFFFFF, and 0 <= bitpos < 8.
-AsmToken AsmLexer::LexRL78BitPositionLiteral(const char *NumStartLoc) {
-
-  // 0x.
-  if ((CurPtr - NumStartLoc) < 1)
-    return ReturnError(NumStartLoc, "invalid address with bit position");
-  // address > 0xfffff
-  if ((CurPtr - NumStartLoc) > 5)
-    return ReturnError(NumStartLoc, "address not in [0, 0xFFFFF] range");
-
-  // Eat the .
-  CurPtr++;
-
-  // The bit position is explicit and between '0' and '7'
-  if (CurPtr[0] >= '0' && CurPtr[0] <= '7') {
-      CurPtr++;
-      return AsmToken(AsmToken::BitPosition,
-                    StringRef(TokStart, CurPtr - TokStart));
-  }
-  // RL78
-  else if (CurPtr[0] == '8' || CurPtr[0] == '9' ||
-           !isIdentifierChar(CurPtr[0], false, false))
-    return ReturnError(CurPtr, "bit position not in [0, 7] range");
-
-  // The bit position is a symbol
-  // RL78
-  while (isIdentifierChar(CurPtr[0], false, false))
-    CurPtr++;
-  return AsmToken(AsmToken::BitPosition,
-                  StringRef(TokStart, CurPtr - TokStart));
-}
 
 AsmToken AsmLexer::LexIdentifier() {
   // Handle RL78 unary operators
@@ -212,19 +207,19 @@ AsmToken AsmLexer::LexIdentifier() {
       }
   }
 
+
   // Check for floating point literals.
   if (CurPtr[-1] == '.' && isDigit(*CurPtr)) {
     // Disambiguate a .1243foo identifier from a floating literal.
     while (isDigit(*CurPtr))
       ++CurPtr;
 
-    if (!isIdentifierChar(*CurPtr, AllowAtInIdentifier,
-                          AllowHashInIdentifier) ||
+    if (!IsIdentifierChar(*CurPtr, AllowAtInIdentifier) ||
         *CurPtr == 'e' || *CurPtr == 'E')
       return LexFloatLiteral();
   }
 
-  while (isIdentifierChar(*CurPtr, AllowAtInIdentifier, AllowHashInIdentifier))
+  while (IsIdentifierChar(*CurPtr, AllowAtInIdentifier))
     ++CurPtr;
 
   // Handle . as a special case.
@@ -587,9 +582,6 @@ AsmToken AsmLexer::LexDigit() {
     // diagnosed by LexHexFloatLiteral).
     if (CurPtr[0] == '.' &&  (NumStart == CurPtr || !MAI.hasRL78Expressions()) || CurPtr[0] == 'p' || CurPtr[0] == 'P')
       return LexHexFloatLiteral(NumStart == CurPtr);
-
-    if (CurPtr[0] == '.' &&  MAI.hasRL78Expressions())
-      return LexRL78BitPositionLiteral(NumStart);
 
     // Otherwise requires at least one hex digit.
     if (CurPtr == NumStart)

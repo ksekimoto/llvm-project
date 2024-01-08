@@ -387,9 +387,9 @@ void RL78MCCodeEmitter::encodeInstruction(const MCInst &MI, raw_ostream &OS,
     if (MI.getOperand(1).getReg() != RL78::R1) {
       // TODO: rewrite reporterror to use loc, like below
       // Or transmit error to RL78AsmParser getStreamer().getAssemblerPtr()->getEmitter()
-      Ctx.getSourceManager()->PrintMessage(
-          errs(), MI.getLoc(), SourceMgr::DiagKind::DK_Error,
-          "Instruction using illegal register.");
+      // Ctx.getSourceManager()->PrintMessage(
+      //     errs(), MI.getLoc(), SourceMgr::DiagKind::DK_Error,
+      //     "Instruction using illegal register.");
       exit(1);
     }
     Bits |= getTargetOpValue(MI, 0, 1, Fixups, STI,

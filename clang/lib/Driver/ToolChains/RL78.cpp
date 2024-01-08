@@ -385,7 +385,7 @@ void rl78::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   //Disable multiple threads to avoid race when using the relocation "stack".
   //See ELF\Arch\RL78.cpp
-  CmdArgs.push_back("-no-threads");
+  //CmdArgs.push_back("-no-threads");
 
   StringRef CPU;
   if (const Arg *A = Args.getLastArg(clang::driver::options::OPT_mcpu_EQ)) {

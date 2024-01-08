@@ -37,9 +37,9 @@ static std::string computeDataLayout(const Triple &T, StringRef FS) {
       (NearFlagPos == StringRef::npos || NearFlagPos < FarFlagPos)) {
     return "e"    // little endian
            // 2023/04/07 KS Modified for RL78
-           // "-m:o" // Mach-O mangling: Private symbols get L prefix. Other
+           "-m:o" // Mach-O mangling: Private symbols get L prefix. Other
            //        // symbols get a _ prefix.
-           "-m:e" // Mach-ELF mangling: Private symbols get L prefix. Other
+           // "-m:e" // Mach-ELF mangling: Private symbols get L prefix. Other
                   // symbols get a _ prefix.
            "-p0:16:16:16" // default: 16 bit width, 16 bit aligned
            "-p1:16:16:16" // near pointers: 16 bit width, 16 bit aligned
@@ -53,9 +53,9 @@ static std::string computeDataLayout(const Triple &T, StringRef FS) {
   } else {
     return "e"    // Little endian.
            // 2023/04/07 KS Modified for RL78
-           // "-m:o" // Mach-O mangling: Private symbols get L prefix. Other
+           "-m:o" // Mach-O mangling: Private symbols get L prefix. Other
            //        // symbols get a _ prefix.
-           "-m:e" // Mach-ELF mangling: Private symbols get L prefix. Other
+           // "-m:e" // Mach-ELF mangling: Private symbols get L prefix. Other
                   // symbols get a _ prefix.
            "-p0:16:16:16" // Default: 16 bit width, 16 bit aligned.
            "-p1:16:16:16" // Near pointers: 16 bit width, 16 bit aligned.

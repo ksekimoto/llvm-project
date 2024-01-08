@@ -48,6 +48,8 @@
 using namespace llvm;
 #define DEBUG_TYPE "rl78-asm-parser"
 
+extern bool EnableRL78CCRLAsmSyntax;
+
 namespace {
 
 class RL78Operand;
@@ -173,11 +175,9 @@ private:
   std::string ReplaceMacroLocalSymbols(
       std::string MacroBody, StringMap<std::string> &MacroLocalSymbols,
       SmallVector<MacroLocalDefinitionRange, 10> &MacroLocalSymbolRanges);
-  #if 0
   bool SplitBitPosition(std::string *AddressSymbol, int64_t *AddressValue,
                         int64_t *BitPosition, bool *IsSymAddress,
                         std::string *ErrorMsg);
-  #endif
   bool parseDirectiveSet(StringRef Name);
   bool parseDirectiveEqu(StringRef Name);
   bool parseDirectiveVector(StringRef Name);
@@ -1999,7 +1999,6 @@ bool RL78AsmParser::parseDirectiveSet(StringRef Name) {
   return false;
 }
 
-#if 0
 bool RL78AsmParser::SplitBitPosition(std::string *AddressSymbol,
                                      int64_t *AddressValue,
                                      int64_t *BitPosition, bool *IsSymAddress,
@@ -2046,7 +2045,6 @@ bool RL78AsmParser::SplitBitPosition(std::string *AddressSymbol,
   }
   return false;
 }
-#endif
 
 bool RL78AsmParser::parseDirectiveEqu(StringRef Name) {
   // Symbols that have already been defined by using .EQU cannot be redefined.
@@ -2240,46 +2238,51 @@ bool RL78AsmParser::parseDirectiveType() {
 
 bool RL78AsmParser::ParseDirective(AsmToken DirectiveID) {
 
+  if (!EnableRL78CCRLAsmSyntax)
+    return true;
+
   SMLoc Loc = getLexer().getLoc();
 
   if (DirectiveID.getString().compare_insensitive(".PUBLIC") == 0 ||
       DirectiveID.getString().compare_insensitive(".EXTERN") == 0) {
     // TODO: add error handling
     return parseDirectiveSymbolAttribute(MCSA_Global);
-  } else if (DirectiveID.getString().compare_insensitive(".SECTION") == 0) {
+  }
+  if (DirectiveID.getString().compare_insensitive(".SECTION") == 0)
     return ParseSectionArguments(Loc);
-  } else if (DirectiveID.getString().compare_insensitive(".ORG") == 0) {
+  if (DirectiveID.getString().compare_insensitive(".ORG") == 0)
     return ParseDirectiveOrg();
-  } else if (DirectiveID.getString().compare_insensitive(".OFFSET") == 0) {
+  if (DirectiveID.getString().compare_insensitive(".OFFSET") == 0)
     return ParseDirectiveOffset();
-  } else if (DirectiveID.getString().compare_insensitive(".DB") == 0) {
+  if (DirectiveID.getString().compare_insensitive(".DB") == 0)
     return parseDirectiveValue(".DB", 1);
-  } else if (DirectiveID.getString().compare_insensitive(".DB2") == 0) {
+  if (DirectiveID.getString().compare_insensitive(".DB2") == 0)
     return parseDirectiveValue(".DB2", 2);
-  } else if (DirectiveID.getString().compare_insensitive(".DB4") == 0) {
+  if (DirectiveID.getString().compare_insensitive(".DB4") == 0)
     return parseDirectiveValue(".DB4", 4);
-  } else if (DirectiveID.getString().compare_insensitive(".DB8") == 0) {
+  if (DirectiveID.getString().compare_insensitive(".DB8") == 0)
     return parseDirectiveValue(".DB8", 8);
-  } else if (DirectiveID.getString().compare_insensitive(".DS") == 0) {
+  if (DirectiveID.getString().compare_insensitive(".DS") == 0)
     return parseDSDirective();
-  } else if (DirectiveID.getString().compare_insensitive(".ALIGN") == 0) {
+  if (DirectiveID.getString().compare_insensitive(".ALIGN") == 0)
     return parseDirectiveAlign();
-  }  
-  /*else if (DirectiveID.getString().compare_insensitive(".DBIT") == 0) {
+
+  /*if (DirectiveID.getString().compare_insensitive(".DBIT") == 0) {
 	//TODO error check for current section = bit section
 	getStreamer().EmitIntValue(0, 1);
     return false;
   }*/
-  else if (DirectiveID.getString().compare_insensitive(".LINE") == 0) {
+  if (DirectiveID.getString().compare_insensitive(".LINE") == 0)
     return parseDirectiveLine();
-  } else if (DirectiveID.getString().compare_insensitive("._line_top") == 0 ||
-             DirectiveID.getString().compare_insensitive("._line_end") == 0) {
+  if (DirectiveID.getString().compare_insensitive("._line_top") == 0 ||
+             DirectiveID.getString().compare_insensitive("._line_end") == 0)
     return parseDirectiveLineTopEnd();
-  } else if (DirectiveID.getString().compare_insensitive(".STACK") == 0) {
+  if (DirectiveID.getString().compare_insensitive(".STACK") == 0)
     return parseDirectiveStack();
-  } else if (DirectiveID.getString().compare_insensitive(".TYPE") == 0) {
+  if (DirectiveID.getString().compare_insensitive(".TYPE") == 0)
     return parseDirectiveType();
-  } else if (DirectiveID.getKind() == AsmToken::Identifier) {
+
+  if (DirectiveID.getKind() == AsmToken::Identifier) {
     StringRef Tok = getLexer().getTok().getString();
     if (Tok.compare_insensitive(".MACRO") == 0)
       return parseDirectiveMacro(DirectiveID.getString());

@@ -308,7 +308,7 @@ void RL78::relocate(uint8_t *Loc, const Relocation &r, uint64_t Val) const {
     write8le(Loc, Val);
     break;
   case R_RL78_DIR16U:
-    //checkUInt(Loc, Val, 16, Type); - temporary revert
+    //checkUInt(Loc, Val, 16, r); - temporary revert
     write16le(Loc, Val);
     break;
   case R_RL78_DIR20U:
@@ -349,11 +349,11 @@ void RL78::relocate(uint8_t *Loc, const Relocation &r, uint64_t Val) const {
     write16le(Loc, checkAndConvertRAM(Loc, Type, Val) & 0xfffe);
     break;
   case R_RL78_DIR8S_PCREL:
-    checkInt(Loc, Val - 1, 8, r);
+    checkIntUInt(Loc, Val - 1, 8, r);
     write8le(Loc, Val - 1);
     break;
   case R_RL78_DIR16S_PCREL:
-    checkInt(Loc, Val - 2, 16, r);
+    checkIntUInt(Loc, Val - 2, 16, r);
     write16le(Loc, Val - 2);
     break;
   case R_RL78_DIR_CALLT:
